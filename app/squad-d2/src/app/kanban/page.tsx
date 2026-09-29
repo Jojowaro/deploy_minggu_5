@@ -15,6 +15,7 @@ import {
   Filter
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 import { KanbanColumn } from '@/components/kanban/KanbanColumn';
 import { AuditTrailDrawer } from '@/components/kanban/AuditTrailDrawer';
 import { CandidateDetailModal } from '@/components/kanban/CandidateDetailModal';
@@ -283,30 +284,8 @@ export default function KanbanPage() {
       {/* 2. MAIN WORKSPACE AREA                                                    */}
       {/* ========================================================================= */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Top Navigation Bar: sticky top, h-16, centered ANDIMA HRMS */}
-        <header className="h-16 border-b border-slate-200/80 bg-white/70 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 md:px-8">
-          {/* Mobile Drawer Trigger (< 1024px) */}
-          <div className="flex items-center lg:hidden">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 -ml-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-              aria-label="Open sidebar navigation"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Center Brand Title */}
-          <div className="flex-1 text-center">
-            <span className="text-sm md:text-base font-medium tracking-[0.2em] text-slate-800 uppercase">
-              ANDIMA HRMS
-            </span>
-          </div>
-
-          {/* Right Spacer for balance */}
-          <div className="w-8 lg:w-0" />
-        </header>
+        {/* Top Navigation Bar */}
+        <Header onMenuClick={() => setSidebarOpen(true)} />
 
         {/* Main Content Body */}
         <main className="flex-1 px-4 sm:px-6 md:px-8 py-6 w-full max-w-[1600px] mx-auto flex flex-col">

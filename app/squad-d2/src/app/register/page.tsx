@@ -16,6 +16,7 @@ import {
 import { submitCandidateRegistration } from './actions';
 import { RegistrationWayUi, JobPost } from '../../types/candidate';
 import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 import { DEFAULT_ACTIVE_JOB_POSTS } from '../../lib/supabaseServer';
 
 function RegistrationFormContent() {
@@ -231,27 +232,8 @@ function RegistrationFormContent() {
       {/* 2. AREA KONTEN UTAMA                                                      */}
       {/* ========================================================================= */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Top Navbar: h-16, border bawah tipis, teks tengah ANDIMA HRMS */}
-        <header className="h-16 border-b border-slate-200/80 bg-white/70 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 md:px-8">
-          <div className="flex items-center lg:hidden">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 -ml-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-1 text-center">
-            <span className="text-sm md:text-base font-medium tracking-[0.2em] text-slate-800 uppercase">
-              ANDIMA HRMS
-            </span>
-          </div>
-
-          <div className="w-8 lg:w-0" />
-        </header>
+        {/* Top Navbar */}
+        <Header onMenuClick={() => setSidebarOpen(true)} />
 
         {/* Page Body Container */}
         <div className="flex-1 px-4 sm:px-6 md:px-12 py-8 max-w-5xl w-full mx-auto">

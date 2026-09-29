@@ -9,13 +9,9 @@ import {
   BriefcaseBusiness,
   ChevronDown,
   ChevronRight,
-  CircleHelp,
   ClipboardList,
   LayoutDashboard,
-  Layers3,
-  LogOut,
   Menu,
-  Settings,
   ShieldCheck,
   UsersRound,
   X,
@@ -81,10 +77,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const pathname = usePathname();
   const router = useRouter();
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
-  const isD2Route = ["/jobs", "/kanban"].includes(pathname);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHrmsOpen, setIsHrmsOpen] = useState(true);
-  const [isD2Open, setIsD2Open] = useState(false);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const [loadedAccount, setLoadedAccount] = useState<Account | null>(null);
   const hasSuppliedAccount = Boolean(userName && userRole && userInitials);
@@ -92,7 +86,6 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
     ? { name: userName, role: userRole, initials: userInitials }
     : null;
   const account = suppliedAccount ?? loadedAccount ?? fallbackAccount;
-  const isD2Expanded = isD2Route || isD2Open;
 
   useEffect(() => {
     if (isPublicRoute || hasSuppliedAccount) return;
@@ -171,40 +164,24 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
               <ChevronDown size={16} className={`transition-transform ${isHrmsOpen ? "rotate-0" : "-rotate-90"}`} />
             </button>
             {isHrmsOpen && (
-              <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
-                <div className="mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsD2Open((value) => !value)}
-                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${
-                      isD2Route ? "bg-[#1e3765] text-white" : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"
-                    }`}
-                    aria-expanded={isD2Expanded}
-                  >
-                    <span className="flex items-center gap-2"><Layers3 size={14} /> D2</span>
-                    <ChevronDown size={14} className={`transition-transform ${isD2Expanded ? "rotate-0" : "-rotate-90"}`} />
-                  </button>
-                  {isD2Expanded && (
-                    <div className="ml-4 mt-1 border-l border-[#d9e2fc]/15 pl-2">
-                      <HrmsLink label="Jobs List & Register" href="/jobs" />
-                      <HrmsLink label="Kanban & Fit - Proper" href="/kanban" />
-                    </div>
-                  )}
-                </div>
+              <div className="ml-5 mt-2 space-y-1 border-l border-[#d9e2fc]/20 pl-3">
+                <HrmsLink label="Job List" href="/jobs" />
+                <HrmsLink label="Kanban" href="/kanban" />
               </div>
             )}
           </div>
           <NavigationItem icon={<ShieldCheck size={16} />} label="MID" suffix={<ChevronRight size={15} />} />
         </nav>
 
-        <div className="mt-auto space-y-3">
-          <div className="rounded-lg border border-[#d9e2fc]/15 bg-[#1e3765] p-3"><div className="flex items-center gap-2 text-[11px] font-semibold text-white"><CircleHelp size={14} className="text-[#77d8cd]" /> Customer Support</div><p className="mt-1 text-[10px] text-[#d9e2fc]/80">24/7 Operations Line</p></div>
-          <NavigationItem icon={<Settings size={15} />} label="Settings" />
-          <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            <span className="grid size-7 place-items-center rounded-full bg-[#16834b] text-[10px] font-bold text-white">{account.initials}</span>
-            <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{account.name}</p><p className="text-[10px] text-[#d9e2fc]/75">{account.role}</p></div>
-            <button type="button" onClick={() => void handleSignOut()} disabled={isSigningOut || isInternalSigningOut} className="rounded p-1.5 text-[#d9e2fc] transition hover:bg-white/10 disabled:opacity-50" aria-label="Logout" title="Logout"><LogOut size={16} /></button>
-          </div>
+        <div className="mt-auto pt-6 pb-2">
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            disabled={isSigningOut || isInternalSigningOut}
+            className="w-full rounded-full border-2 border-[#e63946] py-2 px-4 text-center text-sm font-semibold text-[#e63946] transition-colors hover:bg-[#e63946]/10 disabled:opacity-50"
+          >
+            {isSigningOut || isInternalSigningOut ? "Logging out..." : "Logout"}
+          </button>
         </div>
       </aside>
 

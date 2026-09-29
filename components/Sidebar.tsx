@@ -165,8 +165,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             </button>
             {isHrmsOpen && (
               <div className="ml-5 mt-2 space-y-1 border-l border-[#d9e2fc]/20 pl-3">
-                <HrmsLink label="Job List" href="/jobs" />
-                <HrmsLink label="Kanban" href="/kanban" />
+                <HrmsLink label="Job List & Register" href="/jobs" />
+                <HrmsLink label="Kanban & Fit - Proper" href="/kanban" />
               </div>
             )}
           </div>

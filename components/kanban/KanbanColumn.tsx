@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KanbanColumnConfig } from '../../types/kanban';
-import { CandidateWithJob, CandidateStatus } from '../../types/candidate';
+import { KanbanColumnConfig } from '@/app/squad-d2/src/types/kanban';
+import { CandidateWithJob, CandidateStatus } from '@/app/squad-d2/src/types/candidate';
 import { CandidateCard } from './CandidateCard';
 
 export interface KanbanColumnProps {

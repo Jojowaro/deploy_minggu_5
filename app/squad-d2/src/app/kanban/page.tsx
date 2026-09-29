@@ -14,11 +14,11 @@ import {
   AlertCircle,
   Filter
 } from 'lucide-react';
-import { ApplicantSidebar } from '../../components/portal/ApplicantSidebar';
-import { KanbanColumn } from '../../components/kanban/KanbanColumn';
-import { AuditTrailDrawer } from '../../components/kanban/AuditTrailDrawer';
-import { CandidateDetailModal } from '../../components/kanban/CandidateDetailModal';
-import { RejectionReasonModal } from '../../components/kanban/RejectionReasonModal';
+import Sidebar from '@/components/Sidebar';
+import { KanbanColumn } from '@/components/kanban/KanbanColumn';
+import { AuditTrailDrawer } from '@/components/kanban/AuditTrailDrawer';
+import { CandidateDetailModal } from '@/components/kanban/CandidateDetailModal';
+import { RejectionReasonModal } from '@/components/kanban/RejectionReasonModal';
 import { CandidateWithJob, CandidateStatus, AuditLog } from '../../types/candidate';
 import { KANBAN_COLUMNS, KanbanColumnConfig, getColumnConfig } from '../../types/kanban';
 import { 
@@ -277,11 +277,7 @@ export default function KanbanPage() {
       {/* ========================================================================= */}
       {/* 1. LEFT SIDEBAR (Dark Navy #0b1329 with KANBAN PORTAL expanded)           */}
       {/* ========================================================================= */}
-      <ApplicantSidebar
-        mobileOpen={sidebarOpen}
-        onMobileClose={() => setSidebarOpen(false)}
-        activeItem="kanban"
-      />
+      <Sidebar />
 
       {/* ========================================================================= */}
       {/* 2. MAIN WORKSPACE AREA                                                    */}

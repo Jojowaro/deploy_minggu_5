@@ -14,9 +14,9 @@ import {
   AlertCircle,
   ExternalLink 
 } from 'lucide-react';
-import { CandidateWithJob, CandidateStatus, AuditLog } from '../../types/candidate';
-import { KANBAN_COLUMNS, getColumnConfig } from '../../types/kanban';
-import { getAuditLogsAction } from '../../app/kanban/actions';
+import { CandidateWithJob, CandidateStatus, AuditLog } from '@/app/squad-d2/src/types/candidate';
+import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
+import { getAuditLogsAction } from '@/app/squad-d2/src/app/kanban/actions';
 
 export interface CandidateDetailModalProps {
   isOpen: boolean;

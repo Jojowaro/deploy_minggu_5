@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, AlertTriangle, ShieldAlert } from 'lucide-react';
-import { CandidateWithJob } from '../../types/candidate';
+import { CandidateWithJob } from '@/app/squad-d2/src/types/candidate';
 
 export interface RejectionReasonModalProps {
   isOpen: boolean;

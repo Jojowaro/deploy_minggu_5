@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { MoreVertical, Eye, ArrowRight, UserCheck, ShieldAlert, History } from 'lucide-react';
-import { CandidateWithJob, CandidateStatus } from '../../types/candidate';
-import { KANBAN_COLUMNS, getColumnConfig } from '../../types/kanban';
+import { CandidateWithJob, CandidateStatus } from '@/app/squad-d2/src/types/candidate';
+import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
 
 export interface CandidateCardProps {
   candidate: CandidateWithJob;

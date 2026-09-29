@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu, Search, Briefcase, RefreshCw, XCircle } from 'lucide-react';
-import { ApplicantSidebar } from '../../components/portal/ApplicantSidebar';
-import { JobCard } from '../../components/portal/JobCard';
-import { SearchInput } from '../../components/ui/SearchInput';
+import Sidebar from '@/components/Sidebar';
+import { JobCard } from '@/components/portal/JobCard';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { JobItem } from '../../types/job';
 import { getJobsAction } from './actions';
 
@@ -71,11 +71,7 @@ export default function JobListPage() {
       {/* ========================================================================= */}
       {/* 1. SIDEBAR NAVIGASI KIRI (Dark Navy #0b1329)                             */}
       {/* ========================================================================= */}
-      <ApplicantSidebar
-        mobileOpen={sidebarOpen}
-        onMobileClose={() => setSidebarOpen(false)}
-        activeItem="jobs"
-      />
+      <Sidebar />
 
       {/* ========================================================================= */}
       {/* 2. AREA KONTEN UTAMA                                                      */}

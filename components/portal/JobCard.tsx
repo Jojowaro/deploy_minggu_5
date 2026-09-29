@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { MapPin } from 'lucide-react';
-import { JobItem } from '../../types/job';
+import { JobItem } from '@/app/squad-d2/src/types/job';
 
 export interface JobCardProps {
   job: JobItem;

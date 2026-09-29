@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { X, History, Search, ShieldCheck, ArrowRight, User } from 'lucide-react';
-import { AuditLog } from '../../types/candidate';
-import { getColumnConfig } from '../../types/kanban';
+import { AuditLog } from '@/app/squad-d2/src/types/candidate';
+import { getColumnConfig } from '@/app/squad-d2/src/types/kanban';
 
 export interface AuditTrailDrawerProps {
   isOpen: boolean;

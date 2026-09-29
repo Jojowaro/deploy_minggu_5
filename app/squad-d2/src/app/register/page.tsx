@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { submitCandidateRegistration } from './actions';
 import { RegistrationWayUi, JobPost } from '../../types/candidate';
-import { ApplicantSidebar } from '../../components/portal/ApplicantSidebar';
+import Sidebar from '@/components/Sidebar';
 import { DEFAULT_ACTIVE_JOB_POSTS } from '../../lib/supabaseServer';
 
 function RegistrationFormContent() {
@@ -225,11 +225,7 @@ function RegistrationFormContent() {
       {/* ========================================================================= */}
       {/* 1. SIDEBAR NAVIGASI KIRI                                                  */}
       {/* ========================================================================= */}
-      <ApplicantSidebar
-        mobileOpen={sidebarOpen}
-        onMobileClose={() => setSidebarOpen(false)}
-        activeItem="register"
-      />
+      <Sidebar />
 
       {/* ========================================================================= */}
       {/* 2. AREA KONTEN UTAMA                                                      */}

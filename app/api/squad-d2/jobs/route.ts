@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveJobPosts, getJobPostById } from '@/app/squad-d2/src/lib/supabaseServer';
 
+export const dynamic = 'force-dynamic';
+
 /**
- * GET /api/jobs
- * Mengambil daftar lowongan kerja aktif atau spesifik berdasarkan ID
- * Query param: ?id=<job-id> (opsional)
+ * GET /api/squad-d2/jobs
+ * Mengambil daftar lowongan kerja aktif dari tabel Supabase d1_job_positions
+ * atau data posisi spesifik jika query ?id=<job-id> disertakan.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
       const job = await getJobPostById(id);
       if (!job) {
         return NextResponse.json(
-          { success: false, message: `Lowongan kerja dengan ID ${id} tidak ditemukan.` },
+          { success: false, message: `Posisi pekerjaan dengan ID ${id} tidak ditemukan.` },
           { status: 404 }
         );
       }
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Terjadi kesalahan server';
+    const message = error instanceof Error ? error.message : 'Terjadi kesalahan server saat mengambil data posisi';
     return NextResponse.json(
       { success: false, message },
       { status: 500 }

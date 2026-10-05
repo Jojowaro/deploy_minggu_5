@@ -60,6 +60,18 @@ export interface CandidateWithJob extends Candidate {
   job_title?: string;
 }
 
+export type RequirementStatus = 'Fullfilled' | 'Unfullfilled' | null;
+
+export interface FitProperRequirement {
+  id: string;
+  candidate_id: string;
+  name: string;
+  status: RequirementStatus;
+  is_deleted: boolean;
+  created_at: string;
+}
+
+
 export interface AuditLog {
   id: string;
   candidate_id: string;

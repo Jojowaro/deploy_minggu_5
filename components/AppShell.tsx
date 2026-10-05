@@ -6,14 +6,14 @@ import Sidebar from "@/components/Sidebar";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
+  const isPublicRoute = pathname === "/login" || pathname.startsWith("/auth/");
 
   if (isPublicRoute) return <>{children}</>;
 
   return (
     <>
-      <Sidebar/>
-      <div className="min-h-full lg:pl-[260px]">{children}</div>
+      <Sidebar />
+      <div className="min-h-full lg:pl-[260px] flex flex-col">{children}</div>
     </>
   );
 }

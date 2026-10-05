@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
         source: '/kanban',
         destination: '/squad-d2/src/app/kanban',
       },
+      {
+        source: '/fit-proper',
+        destination: '/squad-d2/src/app/fit-proper',
+      },
     ];
   },
 };

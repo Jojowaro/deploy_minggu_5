@@ -99,17 +99,75 @@ export async function uploadApplicantCv(
 }
 
 /**
- * Fetch or verify active job post ID from d2_job_posts (FR-01.2, VR-01.4)
+ * Ensure the job post ID exists in d2_job_posts so that foreign key constraint
+ * on d2_candidates(job_id) is always satisfied.
  */
-export async function getActiveJobPostId(preferredJobId?: string): Promise<string> {
-  const fallbackJobId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+export async function ensureJobPostInD2(jobId: string): Promise<void> {
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
   try {
-    // If a specific jobId was provided, verify it is active in database
+    // 1. Check if already exists in d2_job_posts
+    const checkRes = await fetch(`${baseUrl}/rest/v1/d2_job_posts?id=eq.${encodeURIComponent(jobId)}&select=id`, {
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+    });
+
+    if (checkRes.ok) {
+      const rows: Array<{ id: string }> = await checkRes.json();
+      if (rows && rows.length > 0) return;
+    }
+
+    // 2. Fetch position details from d1_job_positions
+    const d1Res = await fetch(`${baseUrl}/rest/v1/d1_job_positions?id=eq.${encodeURIComponent(jobId)}&select=*`, {
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+    });
+
+    if (d1Res.ok) {
+      const d1Rows: any[] = await d1Res.json();
+      if (d1Rows && d1Rows.length > 0) {
+        const p = d1Rows[0];
+        await fetch(`${baseUrl}/rest/v1/d2_job_posts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'apikey': supabaseKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify({
+            id: p.id,
+            title: p.nama_posisi,
+            department: p.departemen,
+            location: p.location || 'HQ - Menara MTH',
+            description: p.deskripsi_posisi || '',
+            status: (p.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+          }),
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Squad D2 Supabase] ensureJobPostInD2 warning:', err);
+  }
+}
+
+/**
+ * Fetch or verify active job position ID from d1_job_positions
+ */
+export async function getActiveJobPostId(preferredJobId?: string): Promise<string> {
+  const fallbackJobId = 'b1333b20-de39-4e9c-a768-59bbf9a8e94f';
+  const baseUrl = getSupabaseUrl().replace(/\/$/, '');
+  const supabaseKey = getSupabaseKey();
+
+  try {
+    // If a specific jobId was provided, verify it is active in d1_job_positions
     if (preferredJobId) {
-      const verifyUrl = `${baseUrl}/rest/v1/d2_job_posts?id=eq.${encodeURIComponent(preferredJobId)}&status=eq.active&select=id`;
+      const verifyUrl = `${baseUrl}/rest/v1/d1_job_positions?id=eq.${encodeURIComponent(preferredJobId)}&status_posisi=ilike.Active&select=id`;
       const verifyRes = await fetch(verifyUrl, {
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
@@ -120,13 +178,14 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
       if (verifyRes.ok) {
         const matches: Array<{ id: string }> = await verifyRes.json();
         if (matches.length > 0) {
+          await ensureJobPostInD2(matches[0].id);
           return matches[0].id;
         }
       }
     }
 
-    // Otherwise find the first available active job post
-    const queryUrl = `${baseUrl}/rest/v1/d2_job_posts?status=eq.active&select=id&limit=1`;
+    // Otherwise find the first available active job position from d1_job_positions
+    const queryUrl = `${baseUrl}/rest/v1/d1_job_positions?status_posisi=ilike.Active&select=id&limit=1`;
     const res = await fetch(queryUrl, {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -137,68 +196,60 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
     if (res.ok) {
       const rows: Array<{ id: string }> = await res.json();
       if (rows && rows.length > 0) {
+        await ensureJobPostInD2(rows[0].id);
         return rows[0].id;
       }
     }
   } catch (err) {
-    console.warn('[Squad D2 Supabase] Job post lookup error, using default active pool ID:', err);
+    console.warn('[Squad D2 Supabase] Job position lookup error, using default active pool ID:', err);
   }
 
+  await ensureJobPostInD2(fallbackJobId);
   return fallbackJobId;
 }
 
 /**
- * Default fallback active job posts for PT Andima Transportindo
- * Strictly matches Figma Reference: HRMS D - Applicant Portal
+ * Default fallback active job positions (derived from d1_job_positions)
  */
 export const DEFAULT_ACTIVE_JOB_POSTS: JobPost[] = [
   {
-    id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    title: 'Backend Engineer',
-    department: 'Engineering',
+    id: 'b1333b20-de39-4e9c-a768-59bbf9a8e94f',
+    title: 'Accounting Associate 1 (Billing)',
+    department: 'Finance, Accounting & Tax',
     status: 'active',
-    description: 'Developing scalable server architecture, microservices, and high-performance databases for PT Andima Transportindo logistics ecosystem.',
-    tags: ['Golang', 'PostgreSQL', 'Docker', 'REST API', 'Min 2 Yrs Exp'],
-    location: 'Jakarta, Indonesia',
+    description: 'Menangani proses penagihan, pencatatan faktur, dan rekonsiliasi billing.',
+    tags: ['JP003', 'Billing', 'Finance', 'Full Time'],
+    location: 'HQ - Menara MTH',
   },
   {
-    id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
-    title: 'Logistic Staff',
-    department: 'Operations',
+    id: '0870af53-59f3-4086-a7bc-9d7bb227d1e8',
+    title: 'Accounting Associate 2 (Billing)',
+    department: 'Finance, Accounting & Tax',
     status: 'active',
-    description: 'Managing logistics fleet and dispatch, track delivery manifests, ensure dispatch schedule compliance, and maintain real-time warehouse inventory accuracy.',
-    tags: ['Warehouse Mgmt', 'Dispatching', 'Supply Chain', 'Microsoft Excel', 'Full Time'],
-    location: 'Balikpapan, Indonesia',
+    description: 'Mendukung operasional penagihan piutang dan verifikasi transaksi keuangan.',
+    tags: ['JP004', 'Billing', 'Finance', 'Full Time'],
+    location: 'HQ - Menara MTH',
   },
   {
-    id: 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
-    title: 'Sales & Marketing',
-    department: 'Commercial',
+    id: '9a20b5d6-6ac3-4824-93cd-98efc1c2d3fd',
+    title: 'HR Manager',
+    department: 'Human Capital & Culture',
     status: 'active',
-    description: 'B2B client acquisition for transport services, prepare freight tender proposals, and expand cargo client portfolios.',
-    tags: ['B2B Sales', 'Client Relations', 'Market Analysis', 'Negotiation', 'Communication'],
-    location: 'Surabaya, Indonesia',
+    description: 'Mengelola operasional HR, manajemen talenta, dan hubungan industrial.',
+    tags: ['JP011', 'HR Management', 'Human Capital', 'Full Time'],
+    location: 'HQ - Menara MTH',
   },
   {
-    id: 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44',
-    title: 'Operations Supervisor',
-    department: 'Fleet & Cargo Operations',
+    id: '3ec8499c-b00d-489e-980a-5936275a3b69',
+    title: 'Sales Executive 1',
+    department: 'Commercial & Customer Success',
     status: 'active',
-    description: 'Oversee daily fleet distribution routes, monitor truck driver safety protocols, inspect transport equipment standards, and optimize turnaround times across terminal hubs.',
-    tags: ['Fleet Operations', 'Safety ISO', 'Route Planning', 'Leadership', 'Min 3 Yrs Exp'],
-    location: 'Balikpapan, Indonesia',
+    description: 'Melakukan ekspansi pasar, penawaran produk, dan pencapaian target penjualan.',
+    tags: ['JP018', 'Sales B2B', 'Commercial', 'Full Time'],
+    location: 'HQ - Menara MTH',
   },
   {
-    id: 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55',
-    title: 'Fleet Maintenance Technician',
-    department: 'Maintenance & Engineering',
-    status: 'active',
-    description: 'Perform routine mechanical diagnostics, preventive vehicle servicing, heavy vehicle engine maintenance, and troubleshooting for prime movers and heavy trailers.',
-    tags: ['Heavy Machinery', 'Preventive Service', 'Diagnostics', 'Hydraulics', 'Certification'],
-    location: 'Balikpapan, Indonesia',
-  },
-  {
-    id: 'f5eebc99-9c0b-4ef8-bb6d-6bb9bd380a66',
+    id: 'placeholder-xxx-future',
     title: 'XXX',
     department: 'Future Operations',
     status: 'coming_soon' as any,
@@ -210,14 +261,14 @@ export const DEFAULT_ACTIVE_JOB_POSTS: JobPost[] = [
 ];
 
 /**
- * Fetch list of active job posts from Supabase d2_job_posts
+ * Fetch list of active job positions from Supabase d1_job_positions
  */
 export async function getActiveJobPosts(): Promise<JobPost[]> {
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
   try {
-    const url = `${baseUrl}/rest/v1/d2_job_posts?status=eq.active&select=*&order=created_at.desc`;
+    const url = `${baseUrl}/rest/v1/d1_job_positions?status_posisi=ilike.Active&select=*&order=nama_posisi.asc`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -229,26 +280,26 @@ export async function getActiveJobPosts(): Promise<JobPost[]> {
     if (res.ok) {
       const data: any[] = await res.json();
       if (data && data.length > 0) {
-        // Normalize any missing tags/description from remote rows
         const mapped: JobPost[] = data.map((item) => ({
           id: item.id,
-          title: item.title,
-          department: item.department,
-          status: item.status || 'active',
+          title: item.nama_posisi,
+          department: item.departemen || 'PT Andima Transportindo',
+          status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
           created_at: item.created_at,
-          description: item.description || 'Join our dedicated team at PT Andima Transportindo and drive excellence across our nationwide logistics and supply chain network.',
-          tags: Array.isArray(item.requirements) && item.requirements.length > 0
-            ? item.requirements
-            : Array.isArray(item.tags) && item.tags.length > 0
-            ? item.tags
-            : ['Full Time', 'Logistics', 'Professional', 'Competitive Salary', 'Career Growth'],
-          location: item.location || 'Jakarta, Indonesia',
+          description: item.deskripsi_posisi || 'Bergabunglah bersama tim profesional PT Andima Transportindo dan dukung keunggulan logistik nasional.',
+          tags: [
+            item.job_code,
+            item.departemen,
+            item.location || 'HQ - Menara MTH',
+            'Full Time',
+          ].filter(Boolean),
+          location: item.location || 'HQ - Menara MTH',
         }));
 
-        // Append coming soon placeholder card if not present in DB
+        // Append coming soon placeholder card if not present
         if (!mapped.some((j) => j.isPlaceholder || j.title === 'XXX')) {
           mapped.push({
-            id: 'f5eebc99-9c0b-4ef8-bb6d-6bb9bd380a66',
+            id: 'placeholder-xxx-future',
             title: 'XXX',
             department: 'Future Operations',
             status: 'coming_soon' as any,
@@ -263,21 +314,21 @@ export async function getActiveJobPosts(): Promise<JobPost[]> {
       }
     }
   } catch (err) {
-    console.warn('[Squad D2 Supabase] Failed to fetch active job posts from DB, using fallback list', err);
+    console.warn('[Squad D2 Supabase] Failed to fetch active job positions from d1_job_positions, using fallback list', err);
   }
 
   return DEFAULT_ACTIVE_JOB_POSTS;
 }
 
 /**
- * Fetch a single job post by ID
+ * Fetch a single job position by ID from d1_job_positions
  */
 export async function getJobPostById(id: string): Promise<JobPost | null> {
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
   try {
-    const url = `${baseUrl}/rest/v1/d2_job_posts?id=eq.${encodeURIComponent(id)}&select=*`;
+    const url = `${baseUrl}/rest/v1/d1_job_positions?id=eq.${encodeURIComponent(id)}&select=*`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -291,22 +342,23 @@ export async function getJobPostById(id: string): Promise<JobPost | null> {
         const item = rows[0];
         return {
           id: item.id,
-          title: item.title,
-          department: item.department,
-          status: item.status || 'active',
+          title: item.nama_posisi,
+          department: item.departemen || 'PT Andima Transportindo',
+          status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
           created_at: item.created_at,
-          description: item.description || 'Join our dedicated team at PT Andima Transportindo and drive excellence across our nationwide logistics and supply chain network.',
-          tags: Array.isArray(item.requirements) && item.requirements.length > 0
-            ? item.requirements
-            : Array.isArray(item.tags) && item.tags.length > 0
-            ? item.tags
-            : ['Full Time', 'Logistics', 'Professional', 'Competitive Salary', 'Career Growth'],
-          location: item.location || 'Jakarta, Indonesia',
+          description: item.deskripsi_posisi || 'Bergabunglah bersama tim profesional PT Andima Transportindo.',
+          tags: [
+            item.job_code,
+            item.departemen,
+            item.location || 'HQ - Menara MTH',
+            'Full Time',
+          ].filter(Boolean),
+          location: item.location || 'HQ - Menara MTH',
         };
       }
     }
   } catch (err) {
-    console.warn('[Squad D2 Supabase] Failed to fetch job post by ID:', err);
+    console.warn('[Squad D2 Supabase] Failed to fetch job position by ID from d1_job_positions:', err);
   }
 
   const allPosts = await getActiveJobPosts();
@@ -324,6 +376,11 @@ export async function insertCandidate(
   const endpoint = `${baseUrl}/rest/v1/d2_candidates`;
 
   try {
+    // Ensure foreign key constraint is satisfied in d2_job_posts
+    if (payload.job_id) {
+      await ensureJobPostInD2(payload.job_id);
+    }
+
     const startTime = Date.now();
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -364,7 +421,7 @@ export async function insertCandidate(
 }
 
 /**
- * Fetch all candidates with linked job post titles for Kanban board (FR-D2-002, TR-01, TR-06 < 200ms)
+ * Fetch all candidates with linked job position titles for Kanban board (FR-D2-002, TR-01, TR-06 < 200ms)
  */
 export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
@@ -372,8 +429,9 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
   const startTime = Date.now();
 
   try {
-    const url = `${baseUrl}/rest/v1/d2_candidates?select=*,d2_job_posts(title)&order=created_at.desc`;
-    const response = await fetch(url, {
+    // 1. Fetch candidates and d2_job_posts fallback
+    const candUrl = `${baseUrl}/rest/v1/d2_candidates?select=*,d2_job_posts(title)&order=created_at.desc`;
+    const candPromise = fetch(candUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -383,23 +441,57 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
       cache: 'no-store',
     });
 
+    // 2. Fetch master job positions from d1_job_positions
+    const posUrl = `${baseUrl}/rest/v1/d1_job_positions?select=id,nama_posisi,departemen`;
+    const posPromise = fetch(posUrl, {
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+      cache: 'no-store',
+    });
+
+    const [candRes, posRes] = await Promise.all([candPromise, posPromise]);
+
     const elapsed = Date.now() - startTime;
     if (elapsed > 200) {
       console.warn(`[TR-D2-002 TR-06] Query candidates took ${elapsed}ms, target < 200ms.`);
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!candRes.ok) {
+      const errorText = await candRes.text();
       console.error('[Squad D2 Supabase] Failed to fetch candidates:', errorText);
       return [];
     }
 
-    const rows: any[] = await response.json();
-    return rows.map((row) => ({
-      ...row,
-      job_title: row.d2_job_posts?.title || 'Unknown Position',
-      application_count: typeof row.application_count === 'number' ? row.application_count : 1,
-    }));
+    const candRows: any[] = await candRes.json();
+    let posMap = new Map<string, { nama_posisi: string; departemen: string }>();
+
+    if (posRes.ok) {
+      const posRows: any[] = await posRes.json();
+      if (Array.isArray(posRows)) {
+        posRows.forEach((p) => {
+          posMap.set(p.id, { nama_posisi: p.nama_posisi, departemen: p.departemen });
+        });
+      }
+    }
+
+    return candRows.map((row) => {
+      const d1Pos = posMap.get(row.job_id);
+      const title = d1Pos?.nama_posisi || row.d2_job_posts?.title || 'Unknown Position';
+      const department = d1Pos?.departemen || 'Operations';
+
+      return {
+        ...row,
+        job_title: title,
+        d2_job_posts: {
+          id: row.job_id,
+          title: title,
+          department: department,
+        },
+        application_count: typeof row.application_count === 'number' ? row.application_count : 1,
+      };
+    });
   } catch (err) {
     console.error('[Squad D2 Supabase] Network exception fetching candidates:', err);
     return [];

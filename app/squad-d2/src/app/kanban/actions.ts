@@ -1,24 +1,6 @@
 'use server';
 
-import { 
-  getCandidatesWithJobs, 
-  updateCandidateStatusAndLog, 
-  getAuditLogs 
-} from '../../lib/supabaseServer';
 import { CandidateWithJob, AuditLog, CandidateStatus } from '../../types/candidate';
-
-/**
- * Server Action: Fetch all candidates with job titles (FR-D2-002, TR-01, TR-06)
- */
-export async function getKanbanCandidatesAction(): Promise<CandidateWithJob[]> {
-  try {
-    const candidates = await getCandidatesWithJobs();
-    return candidates;
-  } catch (error) {
-    console.error('[Squad D2 Server Action] Failed to load Kanban candidates:', error);
-    return [];
-  }
-}
 
 export interface UpdateStatusInput {
   candidateId: string;
@@ -37,43 +19,91 @@ export interface UpdateStatusResult {
   latencyMs: number;
 }
 
+function getBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL}` 
+    : 'http://localhost:3000';
+}
+
 /**
- * Server Action: Update Candidate Status with Immutable Audit Trail (FR-02.1 s/d FR-02.6, TR-09, TR-06)
+ * Server Action: Fetch all candidates via /api/squad-d2/candidates
+ */
+export async function getKanbanCandidatesAction(): Promise<CandidateWithJob[]> {
+  try {
+    const res = await fetch(`${getBaseUrl()}/api/squad-d2/candidates`, {
+      cache: 'no-store',
+    });
+
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        return result.data;
+      }
+    }
+
+    const { getCandidatesWithJobs } = await import('../../lib/supabaseServer');
+    return await getCandidatesWithJobs();
+  } catch (error) {
+    console.error('[Squad D2 Action] Failed to load Kanban candidates via API:', error);
+    const { getCandidatesWithJobs } = await import('../../lib/supabaseServer');
+    return await getCandidatesWithJobs();
+  }
+}
+
+/**
+ * Server Action: Update Candidate Status via PATCH /api/squad-d2/candidates
  */
 export async function updateCandidateStatusAction(
   input: UpdateStatusInput
 ): Promise<UpdateStatusResult> {
-  const { candidateId, newStatus, oldStatus, actorName = 'Budi Santoso', reason, isNotEligible } = input;
+  const startTime = Date.now();
+  try {
+    const res = await fetch(`${getBaseUrl()}/api/squad-d2/candidates`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
 
-  let finalReason = reason;
-  if (newStatus === 'rejected') {
-    if (isNotEligible) {
-      finalReason = `Not Eligible: ${reason || 'Permanent rejection recorded by recruitment team'}`;
-    } else if (!reason) {
-      finalReason = 'Moved to Rejected column';
-    }
+    const result = await res.json();
+    return {
+      success: result.success,
+      candidate: result.data,
+      auditLogId: result.auditLogId,
+      error: result.message,
+      latencyMs: result.latencyMs || (Date.now() - startTime),
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      success: false,
+      error: msg,
+      latencyMs: Date.now() - startTime,
+    };
   }
-
-  const result = await updateCandidateStatusAndLog({
-    candidateId,
-    newStatus,
-    oldStatus,
-    actorName,
-    reason: finalReason,
-  });
-
-  return result;
 }
 
 /**
- * Server Action: Fetch Audit Trail Logs from d2_audit_logs (FR-02.6, TR-09)
+ * Server Action: Fetch Audit Trail Logs via GET /api/squad-d2/audit-logs
  */
 export async function getAuditLogsAction(candidateId?: string): Promise<AuditLog[]> {
   try {
-    const logs = await getAuditLogs(candidateId);
-    return logs;
+    const url = candidateId
+      ? `${getBaseUrl()}/api/squad-d2/audit-logs?candidateId=${encodeURIComponent(candidateId)}`
+      : `${getBaseUrl()}/api/squad-d2/audit-logs`;
+
+    const res = await fetch(url, { cache: 'no-store' });
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        return result.data;
+      }
+    }
+
+    const { getAuditLogs } = await import('../../lib/supabaseServer');
+    return await getAuditLogs(candidateId);
   } catch (error) {
-    console.error('[Squad D2 Server Action] Failed to load audit logs:', error);
-    return [];
+    console.error('[Squad D2 Action] Failed to load audit logs via API:', error);
+    const { getAuditLogs } = await import('../../lib/supabaseServer');
+    return await getAuditLogs(candidateId);
   }
 }

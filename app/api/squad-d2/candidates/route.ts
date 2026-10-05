@@ -7,6 +7,8 @@ import {
 } from '@/app/squad-d2/src/lib/supabaseServer';
 import { CandidateStatus, normalizeRegistrationWay } from '@/app/squad-d2/src/types/candidate';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/candidates
  * Mengambil seluruh kandidat pelamar beserta relasi lowongan pekerjaan
@@ -16,8 +18,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get('status');
+    const idFilter = searchParams.get('id') || searchParams.get('candidateId');
 
     let candidates = await getCandidatesWithJobs();
+
+    if (idFilter) {
+      candidates = candidates.filter((c) => c.id === idFilter);
+    }
 
     if (statusFilter) {
       candidates = candidates.filter(

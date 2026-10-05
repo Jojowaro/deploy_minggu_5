@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuditLogs } from '@/app/squad-d2/src/lib/supabaseServer';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/audit-logs
  * Mengambil riwayat immutable audit trail perpindahan status kandidat

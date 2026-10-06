@@ -16,8 +16,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     pathname === "/register" ||
     pathname === "/registration-form" ||
     pathname === "/jobs" ||
+    pathname.startsWith("/jobs") ||
+    pathname.startsWith("/registration-form") ||
+    pathname.startsWith("/register") ||
     pathname.startsWith("/squad-d2/src/app/register") ||
     pathname.startsWith("/squad-d2/src/app/jobs");
+
+  // Routes where sidebar should NOT be rendered (Job list, Registration form, Login, Register)
+  const isNoSidebarRoute = isPublicRoute;
 
   useEffect(() => {
     // If user is trying to access protected internal pages, check auth
@@ -35,7 +41,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }
   }, [pathname, isPublicRoute, router]);
 
-  if (pathname === "/login" || pathname.startsWith("/auth/")) {
+  if (isNoSidebarRoute) {
     return <>{children}</>;
   }
 

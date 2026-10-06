@@ -73,7 +73,7 @@ export default function JobListPage() {
 
   const handleApply = (job: JobItem) => {
     if (job.isPlaceholder || job.title === 'XXX') return;
-    router.push(`/register?jobId=${encodeURIComponent(job.id)}`);
+    router.push(`/registration-form?jobId=${encodeURIComponent(job.id)}`);
   };
 
   return (

@@ -595,6 +595,40 @@ export async function updateCandidateStatusAndLog(params: {
       console.warn('[Squad D2 Supabase] Warning: Audit log entry failed to record:', await auditRes.text());
     }
 
+    // 3. Record Rejection into d2_application_history if rejected (FR-D2-005 FR-05.5, TR-10 Read-Only)
+    if (newStatus === 'rejected' && updatedCandidate) {
+      try {
+        const historyPayload = {
+          candidate_id: candidateId,
+          email: updatedCandidate.email,
+          nik: updatedCandidate.nik || null,
+          full_name: updatedCandidate.full_name,
+          job_id: updatedCandidate.job_id || null,
+          job_title: updatedCandidate.job_title || 'Unknown Position',
+          application_date: nowIso,
+          application_round: updatedCandidate.application_count || 1,
+          status: 'rejected',
+          assessment_score: null,
+          assessment_notes: `Tahap seleksi: ${oldStatus} -> rejected`,
+          rejection_reason: reason || 'Kandidat belum memenuhi kualifikasi standar.',
+          is_read_only: true,
+          is_deleted: false,
+        };
+
+        await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'apikey': supabaseKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(historyPayload),
+        });
+      } catch (histErr) {
+        console.warn('[Squad D2 Supabase] Warning: Failed to record rejection into d2_application_history:', histErr);
+      }
+    }
+
     const totalElapsed = Date.now() - startTime;
     if (totalElapsed > 200) {
       console.info(`[TR-D2-002 TR-06] Status update + audit log took ${totalElapsed}ms`);

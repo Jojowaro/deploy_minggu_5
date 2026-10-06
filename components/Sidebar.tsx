@@ -116,7 +116,17 @@ function PlannedD1Item({ label }: { label: string }) {
 export default function Sidebar({ userName, userRole, userInitials, onSignOut, isSigningOut = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isPublicRoute = pathname === "/login" || pathname.startsWith("/auth/");
+  const isPublicRoute =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/registration-form" ||
+    pathname === "/jobs" ||
+    pathname.startsWith("/jobs") ||
+    pathname.startsWith("/registration-form") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/squad-d2/src/app/jobs") ||
+    pathname.startsWith("/squad-d2/src/app/register") ||
+    pathname.startsWith("/auth/");
   const isD3Route = [
     "/employee-profile",
     "/attendance",

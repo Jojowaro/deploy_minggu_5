@@ -6,7 +6,7 @@
 
 import { CandidateStatus, CandidateStage } from './candidate';
 
-export type KanbanColumnId = 'applied' | 'assessment' | 'interview' | 'offered' | 'rejected';
+export type KanbanColumnId = 'applied' | 'assessment' | 'interview' | 'offered' | 'rejected' | string;
 
 export interface KanbanColumnConfig {
   id: KanbanColumnId;
@@ -17,7 +17,8 @@ export interface KanbanColumnConfig {
   badgeText: string;
   headerBg: string;
   headerText: string;
-  targetStage: CandidateStage;
+  targetStage?: CandidateStage;
+  isDeleted?: boolean;
 }
 
 /**

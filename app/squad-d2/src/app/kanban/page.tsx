@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useTransition, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Menu, 
   Search, 
@@ -12,7 +13,8 @@ import {
   Sparkles, 
   ShieldCheck, 
   AlertCircle,
-  Filter
+  Filter,
+  Plus
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -36,6 +38,7 @@ interface ToastMessage {
 }
 
 export default function KanbanPage() {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [candidates, setCandidates] = useState<CandidateWithJob[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -47,6 +50,40 @@ export default function KanbanPage() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Dynamic Column Pipeline States (with localStorage persistence)
+  const [columns, setColumns] = useState<KanbanColumnConfig[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('andima_kanban_columns');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // fallback
+        }
+      }
+    }
+    return KANBAN_COLUMNS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('andima_kanban_columns', JSON.stringify(columns));
+    } catch {
+      // ignore
+    }
+  }, [columns]);
+
+  // Column CRUD Modals
+  const [deleteTargetColumn, setDeleteTargetColumn] = useState<KanbanColumnConfig | null>(null);
+  const [editingColumn, setEditingColumn] = useState<KanbanColumnConfig | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [addStatusModalOpen, setAddStatusModalOpen] = useState(false);
+  const [newStatusLabel, setNewStatusLabel] = useState('');
+  const [selectedColor, setSelectedColor] = useState({
+    hex: '#6366f1',
+    bg: 'bg-[#6366f1]',
+  });
 
   // Modals & Drawers
   const [auditDrawerOpen, setAuditDrawerOpen] = useState(false);
@@ -79,14 +116,38 @@ export default function KanbanPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Initial Data Fetching (Candidates & Audit Logs)
+  // Initial Data Fetching via Squad D2 API Endpoints
   const loadData = async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
     try {
-      const [fetchedCandidates, fetchedLogs] = await Promise.all([
-        getKanbanCandidatesAction(),
-        getAuditLogsAction(),
+      const [candRes, logsRes] = await Promise.all([
+        fetch('/api/squad-d2/candidates'),
+        fetch('/api/squad-d2/audit-logs'),
       ]);
+
+      let fetchedCandidates: CandidateWithJob[] = [];
+      let fetchedLogs: AuditLog[] = [];
+
+      if (candRes.ok) {
+        const candJson = await candRes.json();
+        if (candJson.success && Array.isArray(candJson.data)) {
+          fetchedCandidates = candJson.data;
+        }
+      }
+      if (fetchedCandidates.length === 0) {
+        fetchedCandidates = await getKanbanCandidatesAction();
+      }
+
+      if (logsRes.ok) {
+        const logsJson = await logsRes.json();
+        if (logsJson.success && Array.isArray(logsJson.data)) {
+          fetchedLogs = logsJson.data;
+        }
+      }
+      if (fetchedLogs.length === 0) {
+        fetchedLogs = await getAuditLogsAction();
+      }
+
       setCandidates(fetchedCandidates);
       setAuditLogs(fetchedLogs);
       setIsLoading(false);
@@ -96,7 +157,7 @@ export default function KanbanPage() {
     } catch (err) {
       console.error('Failed to load Kanban data:', err);
       setIsLoading(false);
-      addToast('error', 'Sync Failed', 'Could not retrieve latest data from Supabase.');
+      addToast('error', 'Sync Failed', 'Could not retrieve latest data from API.');
     } finally {
       if (isManualRefresh) setIsRefreshing(false);
     }
@@ -133,37 +194,104 @@ export default function KanbanPage() {
     });
   }, [candidates, searchQuery]);
 
-  // Group candidates into the 5 Columns
+  const activeColumns = useMemo(() => {
+    return columns.filter((col) => !col.isDeleted);
+  }, [columns]);
+
+  // Group candidates into Active Columns
   const columnCandidates = useMemo(() => {
-    const map: Record<string, CandidateWithJob[]> = {
-      applied: [],
-      assessment: [],
-      interview: [],
-      offered: [],
-      rejected: [],
-    };
+    const map: Record<string, CandidateWithJob[]> = {};
+    activeColumns.forEach((col) => {
+      map[col.id] = [];
+    });
+    // Ensure standard columns exist in map so fallback works
+    ['applied', 'assessment', 'interview', 'offered', 'rejected'].forEach((k) => {
+      if (!map[k]) map[k] = [];
+    });
 
     filteredCandidates.forEach((c) => {
       const rawStatus = (c.status || 'applied').toLowerCase();
-      // Normalize 'interviewed' -> 'interview'
       const key = rawStatus === 'interviewed' ? 'interview' : rawStatus;
       if (map[key]) {
         map[key].push(c);
       } else {
+        if (!map.applied) map.applied = [];
         map.applied.push(c);
       }
     });
 
     return map;
-  }, [filteredCandidates]);
+  }, [activeColumns, filteredCandidates]);
 
   // Which columns to display (based on selectedStatusFilter)
   const visibleColumns = useMemo(() => {
     if (selectedStatusFilter === 'all') {
-      return KANBAN_COLUMNS;
+      return activeColumns;
     }
-    return KANBAN_COLUMNS.filter((col) => col.id === selectedStatusFilter);
-  }, [selectedStatusFilter]);
+    return activeColumns.filter((col) => col.id === selectedStatusFilter);
+  }, [activeColumns, selectedStatusFilter]);
+
+  const handleOpenDeleteModal = (col: KanbanColumnConfig) => {
+    setDeleteTargetColumn(col);
+  };
+
+  const handleConfirmSoftDelete = (columnId: string) => {
+    setColumns((prev) =>
+      prev.map((c) => (c.id === columnId ? { ...c, isDeleted: true } : c))
+    );
+    if (selectedStatusFilter === columnId) {
+      setSelectedStatusFilter('all');
+    }
+    addToast('info', 'Status Deleted', 'Status column has been soft deleted.');
+    setDeleteTargetColumn(null);
+  };
+
+  const handleOpenEditModal = (col: KanbanColumnConfig) => {
+    setEditingColumn(col);
+    setEditLabel(col.label);
+  };
+
+  const handleSaveEditColumn = () => {
+    if (!editingColumn || !editLabel.trim()) return;
+    const updatedLabel = editLabel.trim().toUpperCase();
+    setColumns((prev) =>
+      prev.map((c) =>
+        c.id === editingColumn.id
+          ? { ...c, label: updatedLabel, badgeLabel: editLabel.trim() }
+          : c
+      )
+    );
+    addToast('success', 'Status Updated', `Status changed to ${updatedLabel}.`);
+    setEditingColumn(null);
+  };
+
+  const handleAddStatus = () => {
+    const label = newStatusLabel.trim();
+    if (!label) return;
+    const id = label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || `custom-${Date.now()}`;
+
+    if (columns.some((c) => c.id === id && !c.isDeleted)) {
+      addToast('error', 'Status Exists', 'A status with this name already exists.');
+      return;
+    }
+
+    const newCol: KanbanColumnConfig = {
+      id,
+      label: label.toUpperCase(),
+      badgeLabel: label,
+      colorHex: selectedColor.hex,
+      badgeBg: selectedColor.bg,
+      badgeText: 'text-white',
+      headerBg: 'bg-[#e7eef8]',
+      headerText: 'text-slate-700',
+      targetStage: 'assessment',
+    };
+
+    setColumns((prev) => [...prev, newCol]);
+    addToast('success', 'Status Added', `New status "${newCol.label}" has been added.`);
+    setNewStatusLabel('');
+    setAddStatusModalOpen(false);
+  };
 
   // ============================================================================
   // DRAG & DROP & OPTIMISTIC UI LOGIC (TR-D2-002 TR-06 < 50ms)
@@ -274,65 +402,21 @@ export default function KanbanPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row text-slate-800 font-sans antialiased">
-      {/* ========================================================================= */}
-      {/* 1. LEFT SIDEBAR (Dark Navy #0b1329 with KANBAN PORTAL expanded)           */}
-      {/* ========================================================================= */}
-      <Sidebar />
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800 font-sans antialiased">
+      {/* Top Navigation Bar */}
+      <Header onMenuClick={() => window.dispatchEvent(new Event('open-sidebar'))} />
 
-      {/* ========================================================================= */}
-      {/* 2. MAIN WORKSPACE AREA                                                    */}
-      {/* ========================================================================= */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Top Navigation Bar */}
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-
-        {/* Main Content Body */}
-        <main className="flex-1 px-4 sm:px-6 md:px-8 py-6 w-full max-w-[1600px] mx-auto flex flex-col">
-          {/* Page Heading matching Figma HRMS D - HR.jpg */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-            <div>
-              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                KANBAN
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Applicant tracking pipeline with real-time database synchronization &amp; immutable audit logging.
-              </p>
-            </div>
-
-            {/* Quick Action Badges */}
-            <div className="flex items-center gap-2.5">
-              {/* Audit Trail Drawer Button */}
-              <button
-                type="button"
-                onClick={() => setAuditDrawerOpen(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 text-xs font-semibold rounded-xl transition-all shadow-2xs group"
-              >
-                <History className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
-                <span>Audit Trail</span>
-                {auditLogs.length > 0 && (
-                  <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {auditLogs.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Refresh Button */}
-              <button
-                type="button"
-                onClick={() => loadData(true)}
-                disabled={isRefreshing}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors shadow-2xs disabled:opacity-50"
-                title="Sync latest applicants from database"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
-              </button>
-            </div>
+      {/* Main Content Body */}
+      <main className="flex-1 px-4 sm:px-6 md:px-8 py-6 w-full max-w-[1600px] mx-auto flex flex-col">
+          {/* Page Heading matching Figma HRMS D - HR.jpg & Image 1 */}
+          <div className="mb-5">
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+              KANBAN
+            </h1>
           </div>
 
           {/* ========================================================================= */}
-          {/* 3. KANBAN WHITE CONTAINER BOX (matching Figma HRMS D - HR.jpg)            */}
+          {/* 3. KANBAN WHITE CONTAINER BOX (matching Figma HRMS D - HR.jpg & Image 1)  */}
           {/* ========================================================================= */}
           <div className="flex-1 bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.05)] flex flex-col">
             {/* Top Filter & Search Bar */}
@@ -345,11 +429,10 @@ export default function KanbanPage() {
                   className="w-full h-11 px-4 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 text-left text-xs font-semibold text-slate-700 flex items-center justify-between shadow-2xs transition-all"
                 >
                   <div className="flex items-center gap-2 truncate">
-                    <Filter className="w-3.5 h-3.5 text-slate-400" />
                     <span className="truncate">
                       {selectedStatusFilter === 'all'
                         ? 'Select Status'
-                        : getColumnConfig(selectedStatusFilter).badgeLabel}
+                        : activeColumns.find((c) => c.id === selectedStatusFilter)?.badgeLabel || getColumnConfig(selectedStatusFilter).badgeLabel}
                     </span>
                   </div>
                   <ChevronDown
@@ -374,11 +457,11 @@ export default function KanbanPage() {
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <span>All Columns (5 Statuses)</span>
+                      <span>All Columns ({activeColumns.length} Statuses)</span>
                       {selectedStatusFilter === 'all' && <Check className="w-3.5 h-3.5 text-blue-600" />}
                     </button>
                     <div className="border-t border-slate-100 my-1" />
-                    {KANBAN_COLUMNS.map((col) => {
+                    {activeColumns.map((col) => {
                       const isSelected = selectedStatusFilter === col.id;
                       return (
                         <button
@@ -439,7 +522,7 @@ export default function KanbanPage() {
                   <span>
                     Filtered view:
                     {selectedStatusFilter !== 'all' && (
-                      <span className="font-semibold ml-1">Status: {getColumnConfig(selectedStatusFilter).badgeLabel} &bull;</span>
+                      <span className="font-semibold ml-1">Status: {activeColumns.find((c) => c.id === selectedStatusFilter)?.badgeLabel || getColumnConfig(selectedStatusFilter).badgeLabel} &bull;</span>
                     )}
                     {searchQuery && (
                       <span className="ml-1">Query: &ldquo;<strong className="font-semibold">{searchQuery}</strong>&rdquo;</span>
@@ -464,11 +547,11 @@ export default function KanbanPage() {
 
             {/* Loading Skeleton */}
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4.5">
+              <div className="flex gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin">
                 {[1, 2, 3, 4, 5].map((idx) => (
                   <div
                     key={`skeleton-col-${idx}`}
-                    className="bg-[#f8fafd] rounded-3xl p-3 border border-slate-200/80 min-h-[500px] animate-pulse flex flex-col justify-between"
+                    className="min-w-[280px] w-[280px] shrink-0 bg-[#f8fafd] rounded-3xl p-3 border border-slate-200/80 min-h-[580px] animate-pulse flex flex-col justify-between"
                   >
                     <div className="h-9 bg-slate-200 rounded-xl mb-4" />
                     <div className="space-y-3 flex-1">
@@ -480,31 +563,48 @@ export default function KanbanPage() {
               </div>
             ) : (
               /* ========================================================================= */
-              /* 4. THE 5 KANBAN COLUMNS (Responsive 5-column layout)                      */
+              /* 4. THE KANBAN COLUMNS (Horizontal scrollable with Add Status column)      */
               /* ========================================================================= */
-              <div
-                className={`grid gap-4.5 items-stretch flex-1 ${
-                  visibleColumns.length === 1
-                    ? 'grid-cols-1 max-w-md mx-auto w-full'
-                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5'
-                }`}
-              >
+              <div className="flex gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin">
                 {visibleColumns.map((col) => (
-                  <KanbanColumn
-                    key={col.id}
-                    column={col}
-                    candidates={columnCandidates[col.id] || []}
-                    onDropCandidate={handleDropCandidate}
-                    onDragStartCandidate={handleDragStart}
-                    onSelectCandidate={(c) => setSelectedCandidate(c)}
-                    onQuickMove={handleQuickMove}
-                  />
+                  <div key={col.id} className="min-w-[280px] w-[280px] shrink-0 flex flex-col">
+                    <KanbanColumn
+                      column={col}
+                      candidates={columnCandidates[col.id] || []}
+                      onDropCandidate={handleDropCandidate}
+                      onDragStartCandidate={handleDragStart}
+                      onSelectCandidate={(c) => {
+                        router.push(`/fit-proper?candidateId=${encodeURIComponent(c.id)}`);
+                      }}
+                      onQuickMove={handleQuickMove}
+                      onEditColumn={handleOpenEditModal}
+                      onDeleteColumn={handleOpenDeleteModal}
+                    />
+                  </div>
                 ))}
+
+                {/* Card Add New Status Column matching Image 1 */}
+                {selectedStatusFilter === 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setAddStatusModalOpen(true)}
+                    className="min-w-[280px] w-[280px] shrink-0 border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/20 rounded-2xl md:rounded-3xl flex flex-col items-center justify-center p-6 text-slate-400 hover:text-blue-600 transition-all group min-h-[580px] bg-slate-50/30"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 group-hover:border-blue-300 text-slate-400 group-hover:text-blue-600 flex items-center justify-center mb-3 transition-all shadow-2xs group-hover:scale-105">
+                      <Plus className="w-7 h-7" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600">
+                      Add New Status
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-1 text-center">
+                      Click to add a custom column
+                    </p>
+                  </button>
+                )}
               </div>
             )}
           </div>
         </main>
-      </div>
 
       {/* ========================================================================= */}
       {/* 5. MODALS & SLIDE-OVER DRAWERS                                            */}
@@ -538,6 +638,184 @@ export default function KanbanPage() {
         }}
         onConfirm={handleConfirmRejection}
       />
+
+      {/* E. Confirm To Delete Modal matching Image 2 */}
+      {deleteTargetColumn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border-2 border-[#ea384c] p-7 max-w-xs sm:max-w-sm w-full mx-auto shadow-2xl text-center animate-in zoom-in-95 duration-150 relative">
+            {/* Big Red Circle with Question Mark */}
+            <div className="w-16 h-16 rounded-full border-[3.5px] border-[#ea384c] text-[#ea384c] flex items-center justify-center mx-auto text-3xl font-extrabold mb-4 select-none">
+              ?
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl font-bold text-slate-900 mb-6">
+              Confirm To Delete?
+            </h3>
+
+            {/* Buttons: Yes (Blue), No (Red) matching Image 2 */}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleConfirmSoftDelete(deleteTargetColumn.id)}
+                className="bg-[#1a62ff] hover:bg-blue-700 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteTargetColumn(null)}
+                className="bg-[#ea384c] hover:bg-rose-600 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* F. Edit Column Modal */}
+      {editingColumn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full mx-auto shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-900">
+                Edit Status Column
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingColumn(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Status Label
+                </label>
+                <input
+                  type="text"
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  placeholder="e.g. APPLIED, ASSESSMENT"
+                  className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingColumn(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!editLabel.trim()}
+                  onClick={handleSaveEditColumn}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* G. Add New Status Modal */}
+      {addStatusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full mx-auto shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-900">
+                Add New Status Column
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddStatusModalOpen(false);
+                  setNewStatusLabel('');
+                }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Status Name
+                </label>
+                <input
+                  type="text"
+                  value={newStatusLabel}
+                  onChange={(e) => setNewStatusLabel(e.target.value)}
+                  placeholder="e.g. TECHNICAL TEST, PROBATION"
+                  className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Badge Color
+                </label>
+                <div className="flex items-center gap-2.5">
+                  {[
+                    { hex: '#3b82f6', bg: 'bg-[#3b82f6]' },
+                    { hex: '#f59e0b', bg: 'bg-[#f59e0b]' },
+                    { hex: '#8b5cf6', bg: 'bg-[#8b5cf6]' },
+                    { hex: '#0d9488', bg: 'bg-[#0d9488]' },
+                    { hex: '#ef4444', bg: 'bg-[#ef4444]' },
+                    { hex: '#6366f1', bg: 'bg-[#6366f1]' },
+                    { hex: '#ec4899', bg: 'bg-[#ec4899]' },
+                    { hex: '#14b8a6', bg: 'bg-[#14b8a6]' },
+                  ].map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setSelectedColor(c)}
+                      className={`w-7 h-7 rounded-full ${c.bg} transition-all ${
+                        selectedColor.hex === c.hex
+                          ? 'ring-2 ring-offset-2 ring-blue-600 scale-110'
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddStatusModalOpen(false);
+                    setNewStatusLabel('');
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!newStatusLabel.trim()}
+                  onClick={handleAddStatus}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  Add Status
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* D. Toast Alerts */}
       <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">

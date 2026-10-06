@@ -720,7 +720,7 @@ export default function LoginPage() {
                       : "LOGIN"}
               </button>
               <p className="relative z-10 mt-4 text-center text-sm text-[#334155]">
-                Not login?{" "}
+                Not login ?{" "}
                 <Link
                   href="/register"
                   className="font-bold text-[#3B6FF5] hover:underline"

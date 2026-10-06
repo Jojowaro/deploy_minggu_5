@@ -8,12 +8,16 @@ const nextConfig: NextConfig = {
         destination: '/squad-d2/src/app/jobs',
       },
       {
-        source: '/register',
+        source: '/registration-form',
         destination: '/squad-d2/src/app/register',
       },
       {
         source: '/kanban',
         destination: '/squad-d2/src/app/kanban',
+      },
+      {
+        source: '/fit-proper',
+        destination: '/squad-d2/src/app/fit-proper',
       },
     ];
   },

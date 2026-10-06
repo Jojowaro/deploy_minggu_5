@@ -241,7 +241,7 @@ function RegistrationFormContent() {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800 font-sans antialiased w-full">
       {/* Top Navbar */}
-      <Header />
+      {/* <Header /> */}
 
       {/* Main Page Body Container - Full Width from Left to Right */}
       <main className="flex-1 flex flex-col min-w-0 w-full px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 sm:py-8">

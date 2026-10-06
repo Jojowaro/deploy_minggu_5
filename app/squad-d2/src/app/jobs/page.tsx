@@ -68,7 +68,7 @@ export default function JobListPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800 font-sans antialiased w-full">
       {/* Top Navigation Bar */}
-      <Header />
+      {/* <Header /> */}
 
       {/* Main Content Body */}
       <main className="flex-1 px-4 sm:px-6 md:px-10 lg:px-12 py-8 max-w-7xl w-full mx-auto">

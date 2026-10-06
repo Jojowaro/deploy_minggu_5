@@ -306,7 +306,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                   </button>
                   {isD2Expanded && (
                     <div className="ml-4 mt-1 border-l border-[#d9e2fc]/15 pl-2 space-y-1">
-                      <HrmsLink label="Job List & Register" href="/jobs" />
+                      {/* <HrmsLink label="Job List & Register" href="/jobs" /> */}
                       <HrmsLink label="Kanban and Fit & Proper" href="/kanban" />
                     </div>
                   )}

@@ -173,24 +173,15 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
     let isMounted = true;
     async function loadAccount() {
       try {
-        const supabase = createClient();
-        const { data: userData } = await supabase.auth.getUser();
-        const user = userData.user;
-        if (!user || !isMounted) return;
-
-        const { data: access } = await supabase
-          .from("d3_user_access")
-          .select("app_role")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
-
-        const metadataName = user.user_metadata?.full_name;
-        const name = typeof metadataName === "string" && metadataName.trim()
-          ? metadataName.trim()
-          : user.email?.split("@")[0] ?? "Andima User";
-        const role = access?.app_role === "HR" ? "HR" : access?.app_role === "MANAGER" ? "Manager" : access?.app_role === "EMPLOYEE" ? "Employee" : "HRMS User";
-        const initials = name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "AU";
-        if (isMounted) setLoadedAccount({ name, role, initials });
+        const { getAuthenticatedUserProfile } = await import("@/utils/auth");
+        const profile = await getAuthenticatedUserProfile();
+        if (profile && isMounted) {
+          setLoadedAccount({
+            name: profile.name,
+            role: profile.role,
+            initials: profile.initials,
+          });
+        }
       } catch {
         // The navigation remains available even if the account label cannot load.
       }

@@ -25,6 +25,7 @@ import {
   Search,
 } from 'lucide-react';
 import { CandidateWithJob, FitProperRequirement, RequirementStatus } from '../../types/candidate';
+import { createClient } from '@/utils/supabase/client';
 
 type ActiveTab = 'general' | 'calculation' | 'rejected_history';
 
@@ -83,6 +84,55 @@ function FitProperContent() {
     label: string | null;
     history: any[];
   } | null>(null);
+
+  // Authentication & Role Authorization Guard (FR-D2 Security)
+  useEffect(() => {
+    let isMounted = true;
+    async function verifyAuthAndRole() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error || !user) {
+          router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+          return;
+        }
+
+        const email = user.email || '';
+        const userRole = (user.user_metadata?.role || '').toLowerCase();
+        const isCompanyStaff =
+          email.toLowerCase().endsWith('@andima.co.id') ||
+          email.toLowerCase().endsWith('@andimatransport.com') ||
+          Boolean(user.user_metadata?.position_id) ||
+          Boolean(user.user_metadata?.full_name);
+
+        const hasAllowedRole =
+          isCompanyStaff ||
+          userRole.includes('hr') ||
+          userRole.includes('manager') ||
+          userRole.includes('recruiter') ||
+          userRole.includes('admin') ||
+          userRole.includes('employee') ||
+          userRole.includes('staff');
+
+        if (!hasAllowedRole && isMounted) {
+          router.replace('/login?error=unauthorized_role');
+        }
+      } catch {
+        if (isMounted) {
+          router.replace('/login?redirect=/fit-proper');
+        }
+      }
+    }
+
+    verifyAuthAndRole();
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     if (candidateId) {

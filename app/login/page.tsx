@@ -38,6 +38,13 @@ export default function LoginPage() {
     } else {
       setGreeting("Good Evening");
     }
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "unauthorized_role") {
+        setErrorMessage("Akses ditolak: Akun Anda tidak memiliki role/izin akses ke sistem manajemen.");
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -144,8 +151,13 @@ export default function LoginPage() {
         "Login successful! Redirecting to Management Dashboard...",
       );
 
+      const redirectUrl =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("redirect") || "/kanban"
+          : "/kanban";
+
       setTimeout(() => {
-        router.replace("/kanban");
+        router.replace(redirectUrl);
         router.refresh();
       }, 1000);
     } catch (error) {

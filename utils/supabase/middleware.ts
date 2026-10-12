@@ -52,26 +52,40 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Public paths allowed without login
+  // Public paths allowed without login (Jobs & Registration Form)
   const isPublicRoute =
     pathname === "/login" ||
     pathname === "/register" ||
+    pathname.startsWith("/register") ||
     pathname === "/registration-form" ||
+    pathname.startsWith("/registration-form") ||
     pathname === "/jobs" ||
-    pathname === "/fit-proper" ||
-    pathname.startsWith("/fit-proper") ||
-    pathname.startsWith("/squad-d2/src/app/fit-proper") ||
+    pathname.startsWith("/jobs") ||
     pathname.startsWith("/squad-d2/src/app/register") ||
     pathname.startsWith("/squad-d2/src/app/jobs") ||
-    pathname.startsWith("/api/squad-d2/") ||
+    pathname.startsWith("/api/squad-d2/jobs") ||
+    pathname.startsWith("/api/squad-d2/register") ||
+    pathname.startsWith("/api/squad-d2/repeat-applicants") ||
     pathname.startsWith("/auth/");
+
+  // Protected system routes (Kanban and Fit & Proper)
+  const isSystemRoute =
+    pathname === "/kanban" ||
+    pathname.startsWith("/kanban") ||
+    pathname === "/fit-proper" ||
+    pathname.startsWith("/fit-proper") ||
+    pathname.startsWith("/squad-d2/src/app/kanban") ||
+    pathname.startsWith("/squad-d2/src/app/fit-proper") ||
+    pathname === "/home" ||
+    pathname.startsWith("/home");
 
   // If NOT logged in:
   if (!user) {
-    // If accessing root '/' or any protected URL (e.g. /kanban, /fit-proper, /home, etc.)
-    if (!isPublicRoute || pathname === "/") {
+    // If accessing root '/' or any protected system URL (kanban, fit-proper, etc.)
+    if (!isPublicRoute || pathname === "/" || isSystemRoute) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/login";
+      redirectUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(redirectUrl);
     }
   } else {
@@ -81,6 +95,34 @@ export async function updateSession(request: NextRequest) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/kanban";
       return NextResponse.redirect(redirectUrl);
+    }
+
+    // Role Check for System Pages (Kanban & Fit & Proper)
+    if (isSystemRoute) {
+      const email = user.email || "";
+      const userRole = (user.user_metadata?.role || "").toLowerCase();
+      const isCompanyStaff =
+        email.toLowerCase().endsWith("@andima.co.id") ||
+        email.toLowerCase().endsWith("@andimatransport.com") ||
+        Boolean(user.user_metadata?.position_id) ||
+        Boolean(user.user_metadata?.full_name);
+
+      const hasAllowedRole =
+        isCompanyStaff ||
+        userRole.includes("hr") ||
+        userRole.includes("manager") ||
+        userRole.includes("recruiter") ||
+        userRole.includes("admin") ||
+        userRole.includes("employee") ||
+        userRole.includes("staff");
+
+      // If user lacks authorized role, redirect to login with error
+      if (!hasAllowedRole) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/login";
+        redirectUrl.searchParams.set("error", "unauthorized_role");
+        return NextResponse.redirect(redirectUrl);
+      }
     }
   }
 

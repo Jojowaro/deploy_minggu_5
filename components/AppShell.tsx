@@ -10,7 +10,24 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isPublicRoute =
+  // Routes that do NOT require authentication redirect
+  const isNoAuthRoute =
+    pathname === "/login" ||
+    pathname.startsWith("/auth/") ||
+    pathname === "/register" ||
+    pathname === "/registration-form" ||
+    pathname === "/jobs" ||
+    pathname.startsWith("/jobs") ||
+    pathname.startsWith("/registration-form") ||
+    pathname.startsWith("/register") ||
+    pathname === "/fit-proper" ||
+    pathname.startsWith("/fit-proper") ||
+    pathname.startsWith("/squad-d2/src/app/fit-proper") ||
+    pathname.startsWith("/squad-d2/src/app/register") ||
+    pathname.startsWith("/squad-d2/src/app/jobs");
+
+  // Routes where sidebar should NOT be rendered (Job list, Registration form, Login, Register)
+  const isNoSidebarRoute =
     pathname === "/login" ||
     pathname.startsWith("/auth/") ||
     pathname === "/register" ||
@@ -22,12 +39,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
     pathname.startsWith("/squad-d2/src/app/register") ||
     pathname.startsWith("/squad-d2/src/app/jobs");
 
-  // Routes where sidebar should NOT be rendered (Job list, Registration form, Login, Register)
-  const isNoSidebarRoute = isPublicRoute;
-
   useEffect(() => {
     // If user is trying to access protected internal pages, check auth
-    if (!isPublicRoute) {
+    if (!isNoAuthRoute) {
       try {
         const supabase = createClient();
         supabase.auth.getUser().then(({ data: { user } }) => {
@@ -39,7 +53,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         router.replace("/login");
       }
     }
-  }, [pathname, isPublicRoute, router]);
+  }, [pathname, isNoAuthRoute, router]);
 
   if (isNoSidebarRoute) {
     return <>{children}</>;

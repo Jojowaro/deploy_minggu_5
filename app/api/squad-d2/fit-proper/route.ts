@@ -20,10 +20,14 @@ const evaluationStore: Map<string, CandidateEvaluationState> = new Map();
 
 const DEFAULT_REQUIREMENT_NAMES = [
   'Leadership',
-  'Certification',
-  'Experience',
   'Capability',
   'Experience',
+  'Certification',
+  'Skill',
+  'Communication',
+  'Teamwork',
+  'Respect',
+  'Kindness',
 ];
 
 /**
@@ -120,21 +124,21 @@ async function getOrCreateCandidateState(candidateId: string): Promise<Candidate
       }
     });
 
-    // Add standard dimensions (Image 2)
+    // Add standard dimensions (Image 1 & Image 2)
     DEFAULT_REQUIREMENT_NAMES.forEach((name) => {
       if (!initialNames.includes(name)) {
         initialNames.push(name);
       }
     });
 
-    // Ensure we don't have empty list
-    const finalNames = initialNames.length > 0 ? initialNames.slice(0, 6) : DEFAULT_REQUIREMENT_NAMES;
+    const finalNames = initialNames.length > 0 ? initialNames : DEFAULT_REQUIREMENT_NAMES;
+    const initialActive = ['Leadership', 'Capability', 'Experience', 'Certification', 'Skill'];
 
     const defaultReqs: FitProperRequirement[] = finalNames.map((name, index) => ({
       id: `req-${candidateId}-${index + 1}-${Date.now() + index}`,
       candidate_id: candidateId,
       name,
-      status: null,
+      status: initialActive.includes(name) ? 'Fullfilled' : null,
       is_deleted: false,
       created_at: new Date(Date.now() - (finalNames.length - index) * 60000).toISOString(),
     }));
@@ -256,7 +260,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { candidateId, name, action, decision, reason, actorName = 'HR Manager' } = body;
+    const { candidateId, name, action, decision, reason, actorName = 'HR Manager', id } = body;
 
     if (!candidateId) {
       return NextResponse.json(
@@ -306,7 +310,7 @@ export async function POST(request: NextRequest) {
     }
 
     const newReq: FitProperRequirement = {
-      id: `req-${candidateId}-${Date.now()}`,
+      id: id || body.requirementId || `req-${candidateId}-${Date.now()}`,
       candidate_id: candidateId,
       name: name.trim(),
       status: null,

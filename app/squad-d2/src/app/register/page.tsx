@@ -17,6 +17,7 @@ import {
 import { RegistrationWayUi, JobPost } from '../../types/candidate';
 import Header from '@/components/Header';
 import { DEFAULT_ACTIVE_JOB_POSTS } from '../../lib/supabaseServer';
+import Link from 'next/link';
 
 function RegistrationFormContent() {
   const router = useRouter();
@@ -715,13 +716,14 @@ function RegistrationFormContent() {
 
             {/* Tombol aksi */}
             <div className="mt-6 w-full">
-              <button
+              <Link
                 type="button"
                 onClick={() => setRegisteredEmailPopup(null)}
+                href={"/jobs"}
                 className="w-full py-3 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01]"
               >
                 Tutup
-              </button>
+              </Link>
             </div>
           </div>
         </div>

@@ -58,6 +58,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/register" ||
     pathname === "/registration-form" ||
     pathname === "/jobs" ||
+    pathname === "/fit-proper" ||
+    pathname.startsWith("/fit-proper") ||
+    pathname.startsWith("/squad-d2/src/app/fit-proper") ||
     pathname.startsWith("/squad-d2/src/app/register") ||
     pathname.startsWith("/squad-d2/src/app/jobs") ||
     pathname.startsWith("/api/squad-d2/") ||
@@ -86,4 +89,4 @@ export async function updateSession(request: NextRequest) {
 
 export const createClient = (request: NextRequest) => {
   return updateSession(request);
-};
+};  

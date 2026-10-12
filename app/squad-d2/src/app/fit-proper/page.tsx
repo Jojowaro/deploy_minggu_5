@@ -22,6 +22,7 @@ import {
   Loader2,
   Sparkles,
   Info,
+  Search,
 } from 'lucide-react';
 import { CandidateWithJob, FitProperRequirement, RequirementStatus } from '../../types/candidate';
 
@@ -36,7 +37,7 @@ function FitProperContent() {
   const [candidate, setCandidate] = useState<CandidateWithJob | null>(null);
   const [isLoadingCandidate, setIsLoadingCandidate] = useState(true);
 
-  // Active Tab State: default to 'calculation' as shown in Image 2
+  // Active Tab State: default to 'calculation' as shown in Image 1
   const [activeTab, setActiveTab] = useState<ActiveTab>('calculation');
 
   // Fit & Proper Requirements State
@@ -44,19 +45,30 @@ function FitProperContent() {
   const [threshold, setThreshold] = useState<number>(80);
   const [isLoadingReqs, setIsLoadingReqs] = useState(true);
 
+  // Search Bar & Dropdown State (Image 1 & Image 2 Frame 12)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   // UI Interactive States
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
-  // Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newRequirementName, setNewRequirementName] = useState('');
-
-  const [editingRequirement, setEditingRequirement] = useState<FitProperRequirement | null>(null);
-  const [editRequirementName, setEditRequirementName] = useState('');
-
+  // Capability Fit Setting Modal State (Image 3 + Requirement Management)
   const [isSettingModalOpen, setIsSettingModalOpen] = useState(false);
   const [tempThreshold, setTempThreshold] = useState<number>(80);
+  const [isThresholdSelectOpen, setIsThresholdSelectOpen] = useState(false);
+  const [isAddingReqInModal, setIsAddingReqInModal] = useState(false);
+  const [newReqNameInModal, setNewReqNameInModal] = useState('');
+  const [editingReqIdInModal, setEditingReqIdInModal] = useState<string | null>(null);
+  const [editingReqNameInModal, setEditingReqNameInModal] = useState('');
+  const [modalActionMenuId, setModalActionMenuId] = useState<string | null>(null);
+
+  // Legacy Modals (compatibility)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newRequirementName, setNewRequirementName] = useState('');
+  const [editingRequirement, setEditingRequirement] = useState<FitProperRequirement | null>(null);
+  const [editRequirementName, setEditRequirementName] = useState('');
 
   // Decision States (FR-03.3 & FR-03.4)
   const [isDecisionPending, setIsDecisionPending] = useState(false);
@@ -100,9 +112,14 @@ function FitProperContent() {
 
   // Close menus on outside click
   useEffect(() => {
-    const handleOutsideClick = () => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchDropdownOpen(false);
+      }
       setOpenDropdownId(null);
       setOpenActionMenuId(null);
+      setModalActionMenuId(null);
+      setIsThresholdSelectOpen(false);
     };
     window.addEventListener('click', handleOutsideClick);
     return () => window.removeEventListener('click', handleOutsideClick);
@@ -176,14 +193,18 @@ function FitProperContent() {
         console.warn('Failed to load requirements from API:', err);
       }
 
-      // Default requirements matching Image 2
+      // Default requirements matching Image 1 & Image 2
       if (isMounted) {
         const initialList: FitProperRequirement[] = [
-          { id: `req-1-${candidateId}`, candidate_id: candidateId, name: 'Leadership', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-2-${candidateId}`, candidate_id: candidateId, name: 'Certification', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-3-${candidateId}`, candidate_id: candidateId, name: 'Experience', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-4-${candidateId}`, candidate_id: candidateId, name: 'Capability', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-5-${candidateId}`, candidate_id: candidateId, name: 'Experience', status: null, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-1-${candidateId}`, candidate_id: candidateId, name: 'Leadership', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-2-${candidateId}`, candidate_id: candidateId, name: 'Capability', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-3-${candidateId}`, candidate_id: candidateId, name: 'Experience', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-4-${candidateId}`, candidate_id: candidateId, name: 'Certification', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-5-${candidateId}`, candidate_id: candidateId, name: 'Skill', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-6-${candidateId}`, candidate_id: candidateId, name: 'Communication', status: null, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-7-${candidateId}`, candidate_id: candidateId, name: 'Teamwork', status: null, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-8-${candidateId}`, candidate_id: candidateId, name: 'Respect', status: null, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-9-${candidateId}`, candidate_id: candidateId, name: 'Kindness', status: null, is_deleted: false, created_at: new Date().toISOString() },
         ];
         setRequirements(initialList);
         setThreshold(80);
@@ -203,11 +224,26 @@ function FitProperContent() {
     return requirements.filter((r) => !r.is_deleted);
   }, [requirements]);
 
-  // Calculation Metrics
-  const fulfilledCount = useMemo(() => {
-    return activeRequirements.filter((r) => r.status === 'Fullfilled').length;
+  // Active tags currently met by candidate and displayed on page (status === 'Fullfilled')
+  const activeTags = useMemo(() => {
+    return activeRequirements.filter((r) => r.status === 'Fullfilled');
   }, [activeRequirements]);
 
+  // Available options for the search dropdown pool (status !== 'Fullfilled')
+  const availableOptions = useMemo(() => {
+    return activeRequirements.filter((r) => r.status !== 'Fullfilled');
+  }, [activeRequirements]);
+
+  // Filtered available options by search query
+  const filteredAvailableOptions = useMemo(() => {
+    if (!searchQuery.trim()) return availableOptions;
+    return availableOptions.filter((r) =>
+      r.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    );
+  }, [availableOptions, searchQuery]);
+
+  // Calculation Metrics
+  const fulfilledCount = activeTags.length;
   const totalActiveCount = activeRequirements.length;
 
   const currentPercentage = useMemo(() => {
@@ -254,16 +290,16 @@ function FitProperContent() {
   };
 
   // =========================================================================
-  // REQUIREMENT ACTIONS (Create, Edit, Status, SOFT DELETE)
+  // REQUIREMENT ACTIONS (Tags on Page, Dropdown, Modal Management)
   // =========================================================================
 
-  // Update Status (Fulfilled / Unfulfilled / null)
-  const handleSelectStatus = async (reqId: string, status: RequirementStatus) => {
-    // Optimistic UI update
+  // Remove Tag from Page (User clicks tag -> tag disappears from page & goes to dropdown pool)
+  const handleRemoveTag = async (reqId: string) => {
+    const target = requirements.find((r) => r.id === reqId);
     setRequirements((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, status } : r))
+      prev.map((r) => (r.id === reqId ? { ...r, status: null } : r))
     );
-    setOpenDropdownId(null);
+    showFeedback(`Requirement "${target?.name || ''}" dihilangkan dari halaman.`, 'info');
 
     try {
       await fetch('/api/squad-d2/fit-proper', {
@@ -272,22 +308,23 @@ function FitProperContent() {
         body: JSON.stringify({
           candidateId,
           requirementId: reqId,
-          status,
+          status: null,
         }),
       });
-      showFeedback(`Status requirement diubah ke ${status || 'Select Status'}.`);
     } catch (err) {
-      console.error('Failed to update status on server:', err);
+      console.error('Failed to remove tag on server:', err);
     }
   };
 
-  // Soft Delete Requirement (Never Hard Delete!)
-  const handleSoftDeleteRequirement = async (req: FitProperRequirement) => {
-    // Optimistic update: mark is_deleted = true
+  // Add Tag from Dropdown (User selects from dropdown / search -> tag appears on page)
+  const handleAddTagFromDropdown = async (reqId: string) => {
+    const target = requirements.find((r) => r.id === reqId);
     setRequirements((prev) =>
-      prev.map((r) => (r.id === req.id ? { ...r, is_deleted: true } : r))
+      prev.map((r) => (r.id === reqId ? { ...r, status: 'Fullfilled' } : r))
     );
-    setOpenActionMenuId(null);
+    setSearchQuery('');
+    setIsSearchDropdownOpen(false);
+    showFeedback(`Requirement "${target?.name || ''}" ditambahkan ke halaman.`);
 
     try {
       await fetch('/api/squad-d2/fit-proper', {
@@ -295,17 +332,86 @@ function FitProperContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           candidateId,
-          requirementId: req.id,
-          is_deleted: true, // Soft delete flag
+          requirementId: reqId,
+          status: 'Fullfilled',
         }),
       });
-      showFeedback(`Requirement "${req.name}" berhasil dihapus (soft delete).`, 'info');
     } catch (err) {
-      console.error('Failed to soft delete requirement on server:', err);
+      console.error('Failed to add tag on server:', err);
     }
   };
 
-  // Add New Requirement
+  // Add New Requirement from Modal (Create button in Capability Fit Setting overlay)
+  const handleAddNewRequirementInModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReqNameInModal.trim()) return;
+
+    const name = newReqNameInModal.trim();
+    const tempId = `req-${candidateId}-${Date.now()}`;
+
+    const newReq: FitProperRequirement = {
+      id: tempId,
+      candidate_id: candidateId,
+      name,
+      status: null, // added to pool, available in dropdown
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+    };
+
+    setRequirements((prev) => [...prev, newReq]);
+    setNewReqNameInModal('');
+    setIsAddingReqInModal(false);
+    showFeedback(`Requirement baru "${name}" berhasil ditambahkan ke daftar.`);
+
+    try {
+      const res = await fetch('/api/squad-d2/fit-proper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId, name, id: tempId }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setRequirements((prev) =>
+            prev.map((r) =>
+              r.id === tempId ? { ...json.data, is_deleted: r.is_deleted, name: r.name } : r
+            )
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Failed to create requirement on server:', err);
+    }
+  };
+
+  // Save Edited Requirement Name from Modal
+  const handleSaveEditRequirementInModal = async (reqId: string) => {
+    if (!editingReqNameInModal.trim()) return;
+    const updatedName = editingReqNameInModal.trim();
+
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === reqId ? { ...r, name: updatedName } : r))
+    );
+    setEditingReqIdInModal(null);
+    setEditingReqNameInModal('');
+    showFeedback(`Requirement diperbarui menjadi "${updatedName}".`);
+
+    try {
+      await fetch('/api/squad-d2/fit-proper', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId,
+          requirementId: reqId,
+          name: updatedName,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to edit requirement on server:', err);
+    }
+  };
+
+  // Add New Requirement (Legacy Modal Handler)
   const handleAddNewRequirement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRequirementName.trim()) return;
@@ -325,6 +431,7 @@ function FitProperContent() {
     setRequirements((prev) => [...prev, newReq]);
     setNewRequirementName('');
     setIsAddModalOpen(false);
+    showFeedback(`Requirement "${name}" berhasil ditambahkan.`);
 
     try {
       const res = await fetch('/api/squad-d2/fit-proper', {
@@ -340,13 +447,12 @@ function FitProperContent() {
           );
         }
       }
-      showFeedback(`Requirement "${name}" berhasil ditambahkan.`);
     } catch (err) {
       console.error('Failed to create requirement on server:', err);
     }
   };
 
-  // Edit Requirement
+  // Save Edit Requirement (Legacy Modal Handler)
   const handleSaveEditRequirement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRequirement || !editRequirementName.trim()) return;
@@ -358,6 +464,7 @@ function FitProperContent() {
       prev.map((r) => (r.id === targetId ? { ...r, name: updatedName } : r))
     );
     setEditingRequirement(null);
+    showFeedback(`Requirement diperbarui menjadi "${updatedName}".`);
 
     try {
       await fetch('/api/squad-d2/fit-proper', {
@@ -369,18 +476,66 @@ function FitProperContent() {
           name: updatedName,
         }),
       });
-      showFeedback(`Requirement diperbarui menjadi "${updatedName}".`);
     } catch (err) {
       console.error('Failed to edit requirement on server:', err);
     }
   };
 
+  // Soft Delete Requirement from Modal (Never Hard Delete!)
+  const handleSoftDeleteRequirement = async (req: FitProperRequirement) => {
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === req.id ? { ...r, is_deleted: true } : r))
+    );
+    setModalActionMenuId(null);
+    showFeedback(`Requirement "${req.name}" berhasil dihapus.`, 'info');
+
+    try {
+      await fetch('/api/squad-d2/fit-proper', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId,
+          requirementId: req.id,
+          is_deleted: true,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to soft delete requirement on server:', err);
+    }
+  };
+
+  // Legacy Status Selector (for backward compatibility)
+  const handleSelectStatus = async (reqId: string, status: RequirementStatus) => {
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === reqId ? { ...r, status } : r))
+    );
+    setOpenDropdownId(null);
+
+    try {
+      await fetch('/api/squad-d2/fit-proper', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId,
+          requirementId: reqId,
+          status,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to update status on server:', err);
+    }
+  };
+
   // Save Capability Fit Setting (Threshold Percentage)
-  const handleSaveSetting = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveSetting = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const cleanThreshold = Math.max(0, Math.min(100, Number(tempThreshold) || 80));
     setThreshold(cleanThreshold);
     setIsSettingModalOpen(false);
+    setIsThresholdSelectOpen(false);
+    setIsAddingReqInModal(false);
+    setEditingReqIdInModal(null);
+    setModalActionMenuId(null);
 
     try {
       await fetch('/api/squad-d2/fit-proper', {
@@ -477,241 +632,179 @@ function FitProperContent() {
             )}
           </div>
 
-          {/* 2. Navigation Pills / Tabs matching Image 2 */}
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-8">
-            {/* Tab 1: General information */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('general')}
-              className={`px-6 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all shadow-xs ${
-                activeTab === 'general'
-                  ? 'bg-[#334155] text-white ring-2 ring-slate-400/30'
-                  : 'bg-[#475569] hover:bg-[#334155] text-white opacity-90'
-              }`}
-            >
-              General information
-            </button>
+          {/* 2. Navigation Tabs Container: 1 Card Full-Width Corner-to-Corner with Centered Buttons */}
+          <div className="w-full rounded-2xl sm:rounded-full mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
+              {/* Tab 1: General information */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('general')}
+                className={`w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-200 cursor-pointer shadow-xs ${
+                  activeTab === 'general'
+                    ? 'bg-[#0F2342] text-white font-bold shadow-sm'
+                    : 'bg-[#009688] hover:bg-[#0F2342] text-white opacity-90 hover:opacity-100'
+                }`}
+              >
+                General information
+              </button>
 
-            {/* Tab 2: Fit & Proper Calculation */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('calculation')}
-              className={`px-6 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all shadow-xs ${
-                activeTab === 'calculation'
-                  ? 'bg-[#0d9488] text-white ring-2 ring-teal-400/30 font-bold'
-                  : 'bg-[#009688] hover:bg-[#0d9488] text-white opacity-90'
-              }`}
-            >
-              Fit &amp; Proper Calculation
-            </button>
+              {/* Tab 2: Fit & Proper Calculation */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('calculation')}
+                className={`w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-200 cursor-pointer shadow-xs ${
+                  activeTab === 'calculation'
+                    ? 'bg-[#0F2342] text-white font-bold shadow-sm'
+                    : 'bg-[#009688] hover:bg-[#0F2342] text-white opacity-90 hover:opacity-100'
+                }`}
+              >
+                Fit &amp; Proper Calculation
+              </button>
 
-            {/* Tab 3: Rejected History */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('rejected_history')}
-              className={`px-6 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all shadow-xs ${
-                activeTab === 'rejected_history'
-                  ? 'bg-[#0d9488] text-white ring-2 ring-teal-400/30 font-bold'
-                  : 'bg-[#009688] hover:bg-[#0d9488] text-white opacity-90'
-              }`}
-            >
-              Rejected History
-            </button>
+              {/* Tab 3: Rejected History */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('rejected_history')}
+                className={`w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-200 cursor-pointer shadow-xs ${
+                  activeTab === 'rejected_history'
+                    ? 'bg-[#0F2342] text-white font-bold shadow-sm'
+                    : 'bg-[#009688] hover:bg-[#0F2342] text-white opacity-90 hover:opacity-100'
+                }`}
+              >
+                Rejected History
+              </button>
+            </div>
           </div>
 
           {/* ========================================================================= */}
-          {/* TAB CONTENT 1: FIT & PROPER CALCULATION (Image 2 & 4)                     */}
+          {/* TAB CONTENT 1: FIT & PROPER CALCULATION (Image 1 & Image 2)               */}
           {/* ========================================================================= */}
           {activeTab === 'calculation' && (
-            <div className="flex-1 flex flex-col">
-              {/* Title & Add New Button Row */}
-              <div className="relative mb-6 flex items-center justify-between">
-                <div className="w-24 sm:w-28" /> {/* Spacer */}
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-wider text-center uppercase">
-                  CALCULATION
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="bg-white hover:bg-slate-50 active:scale-95 border border-slate-300 px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs transition-all flex items-center gap-1.5"
-                >
-                  <span>Add New</span>
-                  <Plus className="w-3.5 h-3.5 text-slate-600" />
-                </button>
-              </div>
+            <div className="flex-1 bg-white rounded-3xl p-6 sm:p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+              {/* Centered CALCULATION Title matching Image 1 */}
+              <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-wider text-center uppercase mb-8">
+                CALCULATION
+              </h3>
 
-              {/* Table Column Headers */}
-              <div className="grid grid-cols-12 px-5 py-2 text-xs sm:text-sm font-bold text-[#71544d] uppercase tracking-wide">
-                <div className="col-span-6 sm:col-span-7">Requirement</div>
-                <div className="col-span-6 sm:col-span-5 text-right sm:text-left sm:pl-8">
-                  Evidence
+              {/* Requirement Panel Card matching Image 1 */}
+              {/* <div className="bg-[#fbf9f8] sm:bg-[#faf7f5] rounded-2xl p-6 sm:p-7 border border-[#ede7e3] mb-6"> */}
+              <div className='mb-6'>
+                <div className="mb-5">
+                  <h4 className="text-base sm:text-lg font-bold text-[#71544d]">
+                    Requirement
+                  </h4>
+                  <p className="text-xs sm:text-sm font-medium text-[#9b8984]">
+                    Add the requirements met by the candidate
+                  </p>
+                </div>
+
+                {/* Tags on Page: Blue pill buttons with Checkmark matching Image 1 */}
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-h-[44px]">
+                  {isLoadingReqs ? (
+                    <div className="text-xs text-slate-400 flex items-center gap-2 py-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <span>Memuat requirement...</span>
+                    </div>
+                  ) : activeTags.length === 0 ? (
+                    <p className="text-xs sm:text-sm text-slate-400 italic py-1">
+                      Belum ada requirement yang dipilih. Klik kolom pencarian di bawah untuk menambahkan.
+                    </p>
+                  ) : (
+                    activeTags.map((req) => (
+                      <button
+                        key={req.id}
+                        type="button"
+                        onClick={() => handleRemoveTag(req.id)}
+                        className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs sm:text-sm px-5 py-2 rounded-xl shadow-xs transition-all cursor-pointer group"
+                        title="Klik untuk menghapus requirement ini dari halaman"
+                      >
+                        <span>{req.name}</span>
+                        <Check className="w-4 h-4 text-white stroke-[2.5] group-hover:scale-110 transition-transform" />
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Requirements Rows List */}
-              <div className="space-y-3 mb-8">
-                {isLoadingReqs ? (
-                  <div className="bg-white rounded-2xl p-8 text-center text-slate-400 flex items-center justify-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
-                    <span>Loading requirements...</span>
-                  </div>
-                ) : activeRequirements.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200/80">
-                    <p className="text-sm font-medium">Belum ada requirement yang aktif.</p>
+              {/* Search Bar & Dropdown matching Image 1 & Image 2 (Frame 12) */}
+              <div ref={searchContainerRef} className="relative mb-6">
+                <div
+                  className="relative flex items-center bg-white rounded-xl border border-blue-200/90 shadow-2xs hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Search className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setIsSearchDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsSearchDropdownOpen(true)}
+                    placeholder="Search by Requirement Set"
+                    className="w-full h-11 pl-11 pr-10 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                  />
+                  {searchQuery && (
                     <button
                       type="button"
-                      onClick={() => setIsAddModalOpen(true)}
-                      className="mt-3 text-xs font-bold text-teal-600 hover:text-teal-700 underline"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
                     >
-                      + Tambah requirement baru sekarang
+                      <X className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                ) : (
-                  activeRequirements.map((req) => {
-                    const isDropdownOpen = openDropdownId === req.id;
-                    const isActionOpen = openActionMenuId === req.id;
+                  )}
+                </div>
 
-                    return (
-                      <div
-                        key={req.id}
-                        className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
-                      >
-                        {/* Requirement Label */}
-                        <div className="min-w-0 flex-1">
-                          <span className="text-sm sm:text-base font-semibold text-[#66504a] truncate block">
-                            {req.name}
-                          </span>
-                        </div>
+                {/* Dropdown: All Requirement Set Options matching Image 2 */}
+                {isSearchDropdownOpen && (
+                  <div
+                    className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-40 animate-in fade-in zoom-in-95 duration-100 max-h-72 overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Header line matching Image 2: All Requirement Set Options */}
+                    <div className="px-5 py-3 text-xs sm:text-sm font-bold text-slate-800 border-b border-slate-100 bg-slate-50/70">
+                      All Requirement Set Options
+                    </div>
 
-                        {/* Evidence Status Dropdown & 3-dots Action Menu */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          {/* 1. SELECT STATUS DROPDOWN (Image 4 Component 6) */}
-                          <div className="relative" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenDropdownId(isDropdownOpen ? null : req.id);
-                                setOpenActionMenuId(null);
-                              }}
-                              className={`h-9 px-4 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 shadow-2xs transition-all min-w-[130px] sm:min-w-[150px] ${
-                                req.status === 'Fullfilled'
-                                  ? 'bg-[#0d9488] text-white border-transparent'
-                                  : req.status === 'Unfullfilled'
-                                  ? 'bg-[#e11d48] text-white border-transparent'
-                                  : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
-                              }`}
-                            >
-                              <span>
-                                {req.status === 'Fullfilled'
-                                  ? 'Fullfilled'
-                                  : req.status === 'Unfullfilled'
-                                  ? 'Unfullfilled'
-                                  : 'Select Status'}
-                              </span>
-                              <ChevronDown
-                                className={`w-3.5 h-3.5 opacity-80 transition-transform duration-200 ${
-                                  isDropdownOpen ? 'rotate-180' : ''
-                                }`}
-                              />
-                            </button>
-
-                            {/* Dropdown Menu matching Image 4 */}
-                            {isDropdownOpen && (
-                              <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-30 animate-in fade-in zoom-in-95 duration-100">
-                                {/* Header Trigger Item */}
-                                <div className="px-3.5 py-2.5 text-xs font-medium text-slate-400 border-b border-slate-100 flex items-center justify-between">
-                                  <span>Select Status</span>
-                                  {req.status === null && <Check className="w-3.5 h-3.5 text-slate-400" />}
-                                </div>
-
-                                {/* Option: Fullfilled (Green) */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectStatus(req.id, 'Fullfilled')}
-                                  className="w-full px-3.5 py-2.5 bg-[#009688] hover:bg-[#0d9488] text-white text-xs font-bold flex items-center justify-between transition-colors"
-                                >
-                                  <span>Fullfilled</span>
-                                  {req.status === 'Fullfilled' && <Check className="w-4 h-4 text-white" />}
-                                </button>
-
-                                {/* Option: Unfullfilled (Red) */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectStatus(req.id, 'Unfullfilled')}
-                                  className="w-full px-3.5 py-2.5 bg-[#e11d48] hover:bg-rose-700 text-white text-xs font-bold flex items-center justify-between transition-colors"
-                                >
-                                  <span>Unfullfilled</span>
-                                  {req.status === 'Unfullfilled' && <Check className="w-4 h-4 text-white" />}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* 2. THREE-DOTS MENU (Edit & Soft Delete) */}
-                          <div className="relative" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionMenuId(isActionOpen ? null : req.id);
-                                setOpenDropdownId(null);
-                              }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                              aria-label="Requirement options"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-
-                            {/* Action Popover Menu */}
-                            {isActionOpen && (
-                              <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingRequirement(req);
-                                    setEditRequirementName(req.name);
-                                    setOpenActionMenuId(null);
-                                  }}
-                                  className="w-full px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>Edit Requirement</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleSoftDeleteRequirement(req)}
-                                  className="w-full px-3.5 py-2 text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                  <span>Hapus (Soft Delete)</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                    {filteredAvailableOptions.length === 0 ? (
+                      <div className="px-5 py-6 text-center text-xs text-slate-400">
+                        {searchQuery
+                          ? `Tidak ditemukan requirement dengan kata "${searchQuery}".`
+                          : 'Semua requirement sudah ditambahkan ke halaman.'}
                       </div>
-                    );
-                  })
+                    ) : (
+                      <div className="py-1">
+                        {filteredAvailableOptions.map((req) => (
+                          <button
+                            key={req.id}
+                            type="button"
+                            onClick={() => handleAddTagFromDropdown(req.id)}
+                            className="w-full px-5 py-3 text-left text-xs sm:text-sm font-semibold text-slate-800 hover:bg-[#dde4ee] flex items-center justify-between transition-colors cursor-pointer group"
+                          >
+                            <span>{req.name}</span>
+                            <span className="text-[11px] font-medium text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                              + Tambah ke Halaman
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* ========================================================================= */}
-              {/* BOTTOM BAR: CAPABILITY FIT & SETTING (Image 2 & 3)                        */}
-              {/* ========================================================================= */}
+              {/* Capability Fit Bar matching Image 1 */}
               <div className="mt-auto bg-[#dce6fb] rounded-2xl p-4 sm:p-5 flex items-center justify-between border border-blue-200/80 shadow-2xs">
                 <div className="flex items-center gap-2">
                   <span className="text-sm sm:text-base font-bold text-slate-900">
                     Capability Fit
                   </span>
-                  {/* <span className="hidden sm:inline-block text-xs font-medium text-slate-500 bg-white/60 px-2 py-0.5 rounded-md">
-                    {fulfilledCount} of {totalActiveCount} met ({currentPercentage}%) &bull; Target: {threshold}%
-                  </span> */}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Status Pill matching Image 2 */}
+                  {/* Status Pill Badge: UNFULLFILLED (Red) / FULLFILLED (Teal) */}
                   <div
-                    className={`px-5 sm:px-7 py-1.5 rounded-full text-xs sm:text-sm font-extrabold tracking-wider uppercase text-white shadow-xs ${
+                    className={`px-6 sm:px-8 py-1.5 rounded-full text-xs sm:text-sm font-extrabold tracking-wider uppercase text-white shadow-xs transition-colors ${
                       isCapabilityFit ? 'bg-[#0d9488]' : 'bg-[#e11d48]'
                     }`}
                   >
@@ -725,7 +818,7 @@ function FitProperContent() {
                       setTempThreshold(threshold);
                       setIsSettingModalOpen(true);
                     }}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/50 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-colors cursor-pointer"
                     title="Capability Fit Setting"
                     aria-label="Capability Fit Setting"
                   >
@@ -733,55 +826,9 @@ function FitProperContent() {
                   </button>
                 </div>
               </div>
-
-              {/* ========================================================================= */}
-              {/* DECISION MAKING ACTION BAR (FR-D2-003 FR-03.3 & FR-03.4)                  */}
-              {/* ========================================================================= */}
-              {/* <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>Aksi Keputusan Fit &amp; Proper</span>
-                    {decisionState && (
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          decisionState === 'Lolos Fit & Proper'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {decisionState}
-                      </span>
-                    )}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Hasil kalkulasi: {missingRequirements === 0 ? 'Semua syarat terpenuhi' : `${missingRequirements} syarat belum terpenuhi`} ({currentPercentage}% kecocokan &bull; Target: {threshold}%).
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    disabled={isDecisionPending}
-                    onClick={() => handleExecuteDecision('Lolos Fit & Proper')}
-                    className="px-5 py-2.5 rounded-xl bg-[#0d9488] hover:bg-[#0f766e] active:scale-95 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Lolos Fit &amp; Proper</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isDecisionPending}
-                    onClick={() => setIsRejectModalOpen(true)}
-                    className="px-5 py-2.5 rounded-xl bg-[#e11d48] hover:bg-rose-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <X className="w-4 h-4" />
-                    <span>Tolak</span>
-                  </button>
-                </div>
-              </div> */}
             </div>
           )}
+
 
           {/* ========================================================================= */}
           {/* TAB CONTENT 2: REJECTED HISTORY (Image 5)                                 */}
@@ -983,100 +1030,294 @@ function FitProperContent() {
       </main>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: CAPABILITY FIT SETTING (Image 3 with percentage field)            */}
+      {/* MODAL 1: CAPABILITY FIT SETTING (Image 3 + Requirement Management)         */}
       {/* ========================================================================= */}
       {isSettingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 flex flex-col max-h-[90vh]">
             {/* Blue curved top header banner matching Image 3 */}
-            <div className="h-16 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-700 rounded-b-[40px] shadow-sm" />
+            <div className="h-16 bg-gradient-to-r from-[#155DFC]  to-[#142B45]  shadow-sm shrink-0 flex items-center justify-end px-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingModalOpen(false);
+                  setIsAddingReqInModal(false);
+                  setEditingReqIdInModal(null);
+                  setIsThresholdSelectOpen(false);
+                }}
+                className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
+                title="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="p-6 sm:p-8 pt-3">
-              {/* Centered Modal Title */}
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 text-center uppercase tracking-wide mb-6">
+            <div className="p-6 sm:p-8 pt-4 overflow-y-auto flex-1 space-y-6">
+              {/* Centered Modal Title matching Image 3 */}
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 text-center uppercase tracking-wide">
                 CAPABILITY FIT SETTING
               </h3>
 
-              <form onSubmit={handleSaveSetting} className="space-y-6">
-                {/* Table condition vs evidence matching Image 3 */}
-                <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                  {/* Table Header */}
-                  <div className="bg-[#f1f5f9] px-4 py-3 grid grid-cols-12 text-xs sm:text-sm font-bold text-slate-800">
-                    <div className="col-span-8">Condition</div>
-                    <div className="col-span-4 text-right sm:text-left sm:pl-2">Evidence</div>
-                  </div>
-
-                  {/* Table Row */}
-                  <div className="p-4 bg-white grid grid-cols-12 items-center gap-3">
-                    <div className="col-span-8 pr-2">
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed italic">
-                        &ldquo;Percentage number of requirements that must be met to achieve FULLFILLED status&rdquo;
-                      </p>
-                    </div>
-
-                    {/* Percentage Input Field as instructed by USER */}
-                    <div className="col-span-4 flex items-center justify-end sm:justify-start gap-1.5">
-                      <div className="relative w-full max-w-[100px]">
-                        <input
-                          id="capability-threshold-input"
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={tempThreshold}
-                          onChange={(e) => setTempThreshold(Number(e.target.value))}
-                          placeholder="80"
-                          className="w-full h-10 px-3 pr-7 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                          required
-                          autoFocus
-                        />
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                          %
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+              {/* Table condition vs evidence matching Image 3 */}
+              <div className="rounded-2xl border border-slate-200 overflow-visible shadow-2xs relative z-30">
+                {/* Table Header */}
+                <div className="bg-[#f1f5f9] px-5 py-3 grid grid-cols-12 text-xs sm:text-sm font-bold text-slate-800 rounded-t-2xl">
+                  <div className="col-span-8">Condition</div>
+                  <div className="col-span-4 text-right sm:text-left sm:pl-3">Evidence</div>
                 </div>
 
-                {/* Live Preview Info */}
-                <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
-                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold">Simulasi Perhitungan Kandidat:</p>
-                    <p className="mt-0.5 text-slate-600">
-                      Kandidat saat ini memenuhi {fulfilledCount} dari {totalActiveCount} requirement (
-                      {currentPercentage}%). Status hasil:&nbsp;
-                      <strong
-                        className={`font-bold ${
-                          currentPercentage >= (Number(tempThreshold) || 0)
-                            ? 'text-emerald-700'
-                            : 'text-rose-600'
-                        }`}
-                      >
-                        {currentPercentage >= (Number(tempThreshold) || 0)
-                          ? 'FULLFILLED'
-                          : 'UNFULLFILLED'}
-                      </strong>
+                {/* Table Row */}
+                <div className="p-4 sm:p-5 bg-white grid grid-cols-12 items-center gap-3 rounded-b-2xl relative">
+                  <div className="col-span-8 pr-2">
+                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed italic">
+                      &ldquo;Percentage number of requirements that must be met to achieve FULLFILLED status&rdquo;
                     </p>
                   </div>
-                </div>
 
-                {/* Modal Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-2">
+                  {/* Dropdown "Select Number ⌵" matching Image 3 - Highest z-index */}
+                  <div className="col-span-4 flex items-center justify-end sm:justify-start sm:pl-3 relative z-[9999]">
+                    <div className="relative w-full max-w-[150px] z-[9999]" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setIsThresholdSelectOpen(!isThresholdSelectOpen)}
+                        className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 flex items-center justify-between gap-1.5 hover:border-slate-400 bg-white shadow-2xs cursor-pointer relative z-[9999]"
+                      >
+                        <span>{tempThreshold ? `${tempThreshold}%` : 'Select Number'}</span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
+                            isThresholdSelectOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {/* Threshold select dropdown options - Displayed at the very front */}
+                      {isThresholdSelectOpen && (
+                        <div className="absolute right-0 top-full mt-1.5 w-full bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-[99999] animate-in fade-in zoom-in-95 duration-100 max-h-48 overflow-y-auto">
+                          {[50, 60, 70, 75, 80, 85, 90, 100].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => {
+                                setTempThreshold(num);
+                                setIsThresholdSelectOpen(false);
+                              }}
+                              className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-blue-50 transition-colors cursor-pointer ${
+                                tempThreshold === num ? 'text-blue-600 bg-blue-50/70' : 'text-slate-700'
+                              }`}
+                            >
+                              <span>{num}%</span>
+                              {tempThreshold === num && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ================================================================= */}
+              {/* REQUIREMENT LISTS SECTION (USER EXPLICIT REQUIREMENT)             */}
+              {/* ================================================================= */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm sm:text-base font-bold text-slate-900">
+                      Requirement List
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Kelola daftar seluruh requirements (kriteria) untuk kandidat
+                    </p>
+                  </div>
+
+                  {/* Add Requirement (Create) Button */}
                   <button
                     type="button"
-                    onClick={() => setIsSettingModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                    onClick={() => {
+                      setIsAddingReqInModal(true);
+                      setNewReqNameInModal('');
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-95"
-                  >
-                    Simpan Pengaturan
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Requirement</span>
                   </button>
                 </div>
-              </form>
+
+                {/* Inline Add Requirement Form */}
+                {isAddingReqInModal && (
+                  <form
+                    onSubmit={handleAddNewRequirementInModal}
+                    className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200/80 animate-in fade-in duration-100 flex flex-col sm:flex-row items-center gap-2.5"
+                  >
+                    <input
+                      type="text"
+                      value={newReqNameInModal}
+                      onChange={(e) => setNewReqNameInModal(e.target.value)}
+                      placeholder="Masukkan nama requirement baru..."
+                      className="flex-1 w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      autoFocus
+                      required
+                    />
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingReqInModal(false)}
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!newReqNameInModal.trim()}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 shadow-xs cursor-pointer"
+                      >
+                        Simpan
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Requirement Items List */}
+                <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden bg-white shadow-2xs">
+                  {activeRequirements.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400">
+                      Belum ada requirement. Klik tombol &ldquo;Add Requirement&rdquo; di atas untuk menambahkan.
+                    </div>
+                  ) : (
+                    activeRequirements.map((req) => {
+                      const isEditing = editingReqIdInModal === req.id;
+                      const isActionOpen = modalActionMenuId === req.id;
+
+                      return (
+                        <div
+                          key={req.id}
+                          className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
+                        >
+                          {/* If editing inline */}
+                          {isEditing ? (
+                            <div className="flex-1 flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editingReqNameInModal}
+                                onChange={(e) => setEditingReqNameInModal(e.target.value)}
+                                className="flex-1 h-9 px-3 rounded-lg border border-blue-400 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditRequirementInModal(req.id)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingReqIdInModal(null);
+                                  setEditingReqNameInModal('');
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                                  {req.name}
+                                </span>
+                                {req.status === 'Fullfilled' ? (
+                                  <span className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 px-2 py-0.5 rounded-full shrink-0">
+                                    Aktif di Halaman
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
+                                    Di Dropdown Pool
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Separate Edit & Delete Icon Buttons */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingReqIdInModal(req.id);
+                                    setEditingReqNameInModal(req.name);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  title="Edit Requirement"
+                                  aria-label="Edit Requirement"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleSoftDeleteRequirement(req)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="Hapus Requirement (Soft Delete)"
+                                  aria-label="Hapus Requirement"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Simulation Status Info */}
+              <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Simulasi Perhitungan Kandidat:</p>
+                  <p className="mt-0.5 text-slate-600">
+                    Kandidat saat ini memenuhi {fulfilledCount} dari {totalActiveCount} requirement (
+                    {currentPercentage}%). Status target ({tempThreshold}%):&nbsp;
+                    <strong
+                      className={`font-bold ${
+                        currentPercentage >= (Number(tempThreshold) || 0)
+                          ? 'text-emerald-700'
+                          : 'text-rose-600'
+                      }`}
+                    >
+                      {currentPercentage >= (Number(tempThreshold) || 0)
+                        ? 'FULLFILLED'
+                        : 'UNFULLFILLED'}
+                    </strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingModalOpen(false);
+                  setIsAddingReqInModal(false);
+                  setEditingReqIdInModal(null);
+                  setIsThresholdSelectOpen(false);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveSetting()}
+                className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                Simpan Pengaturan
+              </button>
             </div>
           </div>
         </div>

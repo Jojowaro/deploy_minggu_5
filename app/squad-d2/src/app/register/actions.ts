@@ -10,9 +10,11 @@ export async function submitCandidateRegistration(
   formData: FormData
 ): Promise<CandidateSubmissionResult> {
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000';
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL 
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
+      : process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : 'http://localhost:3000');
 
     const res = await fetch(`${appUrl}/api/squad-d2/register`, {
       method: 'POST',

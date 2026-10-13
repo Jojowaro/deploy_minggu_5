@@ -30,6 +30,7 @@ import {
   getAuditLogsAction 
 } from './actions';
 import { createClient } from '@/utils/supabase/client';
+import { getAuthenticatedUserProfile, UserProfile } from '@/utils/auth';
 
 interface ToastMessage {
   id: string;
@@ -40,6 +41,7 @@ interface ToastMessage {
 
 export default function KanbanPage() {
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [candidates, setCandidates] = useState<CandidateWithJob[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -152,6 +154,12 @@ export default function KanbanPage() {
 
         if (!hasAllowedRole && isMounted) {
           router.replace('/login?error=unauthorized_role');
+          return;
+        }
+
+        const profile = await getAuthenticatedUserProfile();
+        if (profile && isMounted) {
+          setCurrentUser(profile);
         }
       } catch {
         if (isMounted) {
@@ -386,20 +394,56 @@ export default function KanbanPage() {
 
     // 2. BACKGROUND PERSISTENCE & AUDIT LOGGING (TR-09 & TR-06 < 200ms)
     try {
+      const actorName = currentUser ? `${currentUser.name} (${currentUser.role})` : 'HR Specialist';
       const result = await updateCandidateStatusAction({
         candidateId,
         newStatus: targetStatus,
         oldStatus,
-        actorName: 'Budi Santoso',
+        actorName,
         reason,
         isNotEligible,
       });
 
       if (!result.success) {
-        // Rollback state on server failure
-        setCandidates(previousCandidates);
-        addToast('error', 'Status Update Failed', result.error || 'Server rejected status transition.');
-        return;
+        // Resilient fallback: Try client-side PATCH directly before giving up
+        let recovered = false;
+        try {
+          const clientRes = await fetch('/api/squad-d2/candidates', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              candidateId,
+              newStatus: targetStatus,
+              oldStatus,
+              actorName,
+              reason,
+              isNotEligible,
+            }),
+          });
+          if (clientRes.ok) {
+            const clientData = await clientRes.json();
+            if (clientData.success) {
+              recovered = true;
+              getAuditLogsAction().then((logs) => setAuditLogs(logs));
+              const targetCol = getColumnConfig(targetStatus);
+              addToast(
+                'success',
+                `Moved to ${targetCol.badgeLabel}`,
+                `${candidate.full_name} is now in ${targetCol.badgeLabel} stage`
+              );
+              return;
+            }
+          }
+        } catch {
+          // ignore fallback error
+        }
+
+        if (!recovered) {
+          // Rollback state on server failure
+          setCandidates(previousCandidates);
+          addToast('error', 'Status Update Failed', result.error || 'Server rejected status transition.');
+          return;
+        }
       }
 
       console.info(`[TR-D2-002 TR-06] Database update completed in ${result.latencyMs}ms`);

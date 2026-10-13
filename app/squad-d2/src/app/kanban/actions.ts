@@ -4,7 +4,8 @@ import { CandidateWithJob, AuditLog, CandidateStatus } from '../../types/candida
 import { 
   getCandidatesWithJobs, 
   updateCandidateStatusAndLog, 
-  getAuditLogs 
+  getAuditLogs,
+  softDeleteCandidate
 } from '../../lib/supabaseServer';
 
 export interface UpdateStatusInput {
@@ -100,4 +101,20 @@ export async function getAuditLogsAction(candidateId?: string): Promise<AuditLog
     return [];
   }
 }
+
+/**
+ * Server Action: Soft delete candidate from Kanban board
+ */
+export async function softDeleteCandidateAction(
+  candidateId: string,
+  actorName?: string
+): Promise<{ success: boolean; error?: string; latencyMs: number }> {
+  try {
+    return await softDeleteCandidate({ candidateId, actorName });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, error: msg, latencyMs: 0 };
+  }
+}
+
 

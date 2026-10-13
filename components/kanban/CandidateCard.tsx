@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { MoreVertical, Eye, ArrowRight, UserCheck, ShieldAlert, History } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MoreVertical, Eye, ArrowRight, UserCheck, ShieldAlert, History, Trash2, Calendar, Edit3 } from 'lucide-react';
 import { CandidateWithJob, CandidateStatus } from '@/app/squad-d2/src/types/candidate';
 import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
 
@@ -10,6 +10,8 @@ export interface CandidateCardProps {
   onDragStart: (e: React.DragEvent, candidate: CandidateWithJob) => void;
   onSelectCandidate?: (candidate: CandidateWithJob) => void;
   onQuickMove?: (candidate: CandidateWithJob, targetStatus: CandidateStatus) => void;
+  onDeleteCandidate?: (candidate: CandidateWithJob) => void;
+  onEditInterview?: (candidate: CandidateWithJob) => void;
 }
 
 export const CandidateCard: React.FC<CandidateCardProps> = ({
@@ -17,9 +19,26 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   onDragStart,
   onSelectCandidate,
   onQuickMove,
+  onDeleteCandidate,
+  onEditInterview,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
 
   const columnConfig = getColumnConfig(candidate.status);
 
@@ -28,12 +47,10 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const statusBadgeBg = columnConfig.badgeBg;
 
   // Qualification logic (Fit & Proper Preview)
-  // Newly applied candidates in screening without qualification are "Not Counted Yet"
-  // Advanced candidates (assessment, interview, offered) or explicitly qualified are "QUALIFIED"
   const isCandidateEvaluated =
     candidate.status !== 'applied' ||
     (candidate.stage && candidate.stage !== 'screening') ||
-    candidate.full_name.toLowerCase().includes('indra'); // matches Figma mockup for Indra
+    candidate.full_name.toLowerCase().includes('indra');
 
   const isQualified = isCandidateEvaluated && candidate.status !== 'rejected';
   const showNotCountedYet = !isCandidateEvaluated && candidate.status === 'applied';
@@ -44,7 +61,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
     candidate.status === 'rejected' &&
     (candidate.rejection_reason?.toLowerCase().includes('not eligible') ||
       candidate.rejection_reason?.toLowerCase().includes('permanent') ||
-      candidate.full_name.toLowerCase().includes('rusdi') && candidate.status === 'rejected');
+      (candidate.full_name.toLowerCase().includes('rusdi') && candidate.status === 'rejected'));
 
   const handleDragStart = (e: React.DragEvent) => {
     setIsDragging(true);
@@ -64,6 +81,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
       onDragEnd={handleDragEnd}
       onClick={() => onSelectCandidate?.(candidate)}
       className={`relative group bg-white rounded-2xl p-4.5 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-150 cursor-grab active:cursor-grabbing select-none ${
+        menuOpen ? 'z-40 ring-1 ring-blue-400/40' : 'z-10'
+      } ${
         isDragging ? 'opacity-40 scale-[0.98] border-blue-400 shadow-lg' : 'hover:border-blue-300 hover:-translate-y-0.5'
       }`}
     >
@@ -79,7 +98,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         </div>
 
         {/* Quick Action Button (Hover / Focus) */}
-        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="relative shrink-0" ref={menuRef} onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => setMenuOpen(!menuOpen)}
@@ -89,11 +108,10 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             <MoreVertical className="w-4 h-4" />
           </button>
 
-          {/* Quick Action Dropdown */}
+          {/* Quick Action Dropdown - with highest z-index move to forward */}
           {menuOpen && (
             <div
-              className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100"
-              onMouseLeave={() => setMenuOpen(false)}
+              className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-[9999] animate-in fade-in zoom-in-95 duration-100"
             >
               <button
                 type="button"
@@ -106,6 +124,21 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                 <Eye className="w-3.5 h-3.5 text-slate-500" />
                 View Details & Logs
               </button>
+
+              {/* Edit Interview option when candidate is in Interviewed column */}
+              {(candidate.status === 'interviewed' || candidate.status === 'interview') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEditInterview?.(candidate);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  Edit Info Interview
+                </button>
+              )}
 
               <div className="border-t border-slate-100 my-1" />
               <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -134,6 +167,20 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                   </button>
                 );
               })}
+
+              <div className="border-t border-slate-100 my-1" />
+              {/* Soft Delete Action in 3 dots menu */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeleteCandidate?.(candidate);
+                }}
+                className="w-full px-3 py-1.5 text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                Hapus Pelamar
+              </button>
             </div>
           )}
         </div>

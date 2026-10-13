@@ -46,6 +46,8 @@ export interface Candidate {
   stage: CandidateStage;
   status: CandidateStatus;
   rejection_reason?: string | null;
+  skills?: string | null;
+  certificate_file_path?: string | null;
   application_count?: number;
   created_at: string;
   updated_at: string;

@@ -24,10 +24,15 @@ import { CandidateDetailModal } from '@/components/kanban/CandidateDetailModal';
 import { RejectionReasonModal } from '@/components/kanban/RejectionReasonModal';
 import { CandidateWithJob, CandidateStatus, AuditLog } from '../../types/candidate';
 import { KANBAN_COLUMNS, KanbanColumnConfig, getColumnConfig } from '../../types/kanban';
+import { StatusConfirmModal } from '@/components/kanban/StatusConfirmModal';
+import { TransferEmailModal, InterviewScheduleData } from '@/components/kanban/TransferEmailModal';
+import { DeleteCandidateModal } from '@/components/kanban/DeleteCandidateModal';
 import { 
   getKanbanCandidatesAction, 
   updateCandidateStatusAction, 
-  getAuditLogsAction 
+  getAuditLogsAction,
+  softDeleteCandidateAction,
+  UpdateStatusResult
 } from './actions';
 import { createClient } from '@/utils/supabase/client';
 import { getAuthenticatedUserProfile, UserProfile } from '@/utils/auth';
@@ -93,6 +98,43 @@ export default function KanbanPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateWithJob | null>(null);
   const [rejectionTarget, setRejectionTarget] = useState<CandidateWithJob | null>(null);
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
+
+  // Status Change Confirmation Modal
+  const [statusConfirmTarget, setStatusConfirmTarget] = useState<{
+    candidate: CandidateWithJob;
+    targetStatus: CandidateStatus;
+  } | null>(null);
+
+  // Transfer Email Setting (Interview) Modal
+  const [interviewModalTarget, setInterviewModalTarget] = useState<{
+    candidate: CandidateWithJob;
+    isEdit: boolean;
+  } | null>(null);
+
+  // Soft Delete Candidate Modal
+  const [deleteCandidateTarget, setDeleteCandidateTarget] = useState<CandidateWithJob | null>(null);
+  const [isDeletingCandidate, setIsDeletingCandidate] = useState(false);
+
+  // Interview schedules mapping (candidateId -> InterviewScheduleData)
+  const [interviewSchedules, setInterviewSchedules] = useState<Record<string, InterviewScheduleData>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('andima_interview_schedules');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return {};
+  });
+
+  const saveInterviewSchedule = (candidateId: string, data: InterviewScheduleData) => {
+    setInterviewSchedules((prev) => {
+      const updated = { ...prev, [candidateId]: data };
+      try {
+        localStorage.setItem('andima_interview_schedules', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
 
   // Toast notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -293,7 +335,7 @@ export default function KanbanPage() {
     setDeleteTargetColumn(col);
   };
 
-  const handleConfirmSoftDelete = (columnId: string) => {
+  const handleConfirmSoftDeleteColumn = (columnId: string) => {
     setColumns((prev) =>
       prev.map((c) => (c.id === columnId ? { ...c, isDeleted: true } : c))
     );
@@ -393,9 +435,12 @@ export default function KanbanPage() {
     console.info(`[TR-D2-002 TR-06] Optimistic UI rendered in ${uiLatency}ms (< 50ms target)`);
 
     // 2. BACKGROUND PERSISTENCE & AUDIT LOGGING (TR-09 & TR-06 < 200ms)
+    const actorName = currentUser ? `${currentUser.name} (${currentUser.role})` : 'HR Specialist';
+    let result: UpdateStatusResult | null = null;
+    let failureError: string | null = null;
+
     try {
-      const actorName = currentUser ? `${currentUser.name} (${currentUser.role})` : 'HR Specialist';
-      const result = await updateCandidateStatusAction({
+      result = await updateCandidateStatusAction({
         candidateId,
         newStatus: targetStatus,
         oldStatus,
@@ -403,89 +448,172 @@ export default function KanbanPage() {
         reason,
         isNotEligible,
       });
-
-      if (!result.success) {
-        // Resilient fallback: Try client-side PATCH directly before giving up
-        let recovered = false;
-        try {
-          const clientRes = await fetch('/api/squad-d2/candidates', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              candidateId,
-              newStatus: targetStatus,
-              oldStatus,
-              actorName,
-              reason,
-              isNotEligible,
-            }),
-          });
-          if (clientRes.ok) {
-            const clientData = await clientRes.json();
-            if (clientData.success) {
-              recovered = true;
-              getAuditLogsAction().then((logs) => setAuditLogs(logs));
-              const targetCol = getColumnConfig(targetStatus);
-              addToast(
-                'success',
-                `Moved to ${targetCol.badgeLabel}`,
-                `${candidate.full_name} is now in ${targetCol.badgeLabel} stage`
-              );
-              return;
-            }
-          }
-        } catch {
-          // ignore fallback error
-        }
-
-        if (!recovered) {
-          // Rollback state on server failure
-          setCandidates(previousCandidates);
-          addToast('error', 'Status Update Failed', result.error || 'Server rejected status transition.');
-          return;
-        }
-      }
-
-      console.info(`[TR-D2-002 TR-06] Database update completed in ${result.latencyMs}ms`);
-
-      // Refresh Audit logs silently in background
-      getAuditLogsAction().then((logs) => setAuditLogs(logs));
-
-      const targetCol = getColumnConfig(targetStatus);
-      addToast(
-        'success',
-        `Moved to ${targetCol.badgeLabel}`,
-        `${candidate.full_name} is now in ${targetCol.badgeLabel} stage (Audit log created in ${result.latencyMs}ms)`
-      );
-    } catch (err: unknown) {
-      // Rollback on network exception
-      setCandidates(previousCandidates);
-      const msg = err instanceof Error ? err.message : String(err);
-      addToast('error', 'Network Error', `Failed to persist status: ${msg}`);
+    } catch (actionErr: unknown) {
+      console.warn('[Kanban] Server action dispatch error, falling back to direct API:', actionErr);
+      failureError = actionErr instanceof Error ? actionErr.message : String(actionErr);
     }
+
+    // Resilient fallback: If server action threw or returned failure, immediately try direct API
+    if (!result || !result.success) {
+      try {
+        const clientRes = await fetch('/api/squad-d2/candidates', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateId,
+            newStatus: targetStatus,
+            oldStatus,
+            actorName,
+            reason,
+            isNotEligible,
+          }),
+        });
+        if (clientRes.ok) {
+          const clientData = await clientRes.json();
+          if (clientData.success) {
+            result = {
+              success: true,
+              latencyMs: clientData.latencyMs || 160,
+            };
+            failureError = null;
+          } else {
+            failureError = clientData.message || 'Server rejected status update';
+          }
+        } else {
+          failureError = `API error status: ${clientRes.status}`;
+        }
+      } catch (apiErr: unknown) {
+        failureError = apiErr instanceof Error ? apiErr.message : String(apiErr);
+      }
+    }
+
+    if (!result || !result.success) {
+      // Rollback state on complete failure
+      setCandidates(previousCandidates);
+      addToast('error', 'Gagal Memperbarui Status', failureError || 'Server menolak pembaruan status.');
+      return;
+    }
+
+    console.info(`[TR-D2-002 TR-06] Database update completed in ${result.latencyMs}ms`);
+
+    // Refresh Audit logs silently in background
+    getAuditLogsAction().then((logs) => setAuditLogs(logs));
+
+    const targetCol = getColumnConfig(targetStatus);
+    addToast(
+      'success',
+      `Moved to ${targetCol.badgeLabel}`,
+      `${candidate.full_name} is now in ${targetCol.badgeLabel} stage (Audit log created in ${result.latencyMs}ms)`
+    );
   };
 
   const handleDropCandidate = (candidateId: string, targetStatus: CandidateStatus) => {
     const candidate = candidates.find((c) => c.id === candidateId);
     if (!candidate) return;
+    if (candidate.status === targetStatus) return; // No change
 
-    // If moving to Rejected, open the Rejection Modal to prompt for reason
-    if (targetStatus === 'rejected') {
-      setRejectionTarget(candidate);
-      setRejectionModalOpen(true);
-      return;
-    }
-
-    executeStatusTransition(candidateId, targetStatus);
+    // Prompt user with confirmation modal
+    setStatusConfirmTarget({ candidate, targetStatus });
   };
 
   const handleQuickMove = (candidate: CandidateWithJob, targetStatus: CandidateStatus) => {
+    if (candidate.status === targetStatus) return; // No change
+
+    // Prompt user with confirmation modal
+    setStatusConfirmTarget({ candidate, targetStatus });
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!statusConfirmTarget) return;
+    const { candidate, targetStatus } = statusConfirmTarget;
+    setStatusConfirmTarget(null);
+
+    // If moving to interviewed, open Transfer Email Setting overlay
+    if (targetStatus === 'interviewed' || targetStatus === 'interview') {
+      setInterviewModalTarget({ candidate, isEdit: false });
+      return;
+    }
+
+    // If moving to rejected, open Rejection modal
     if (targetStatus === 'rejected') {
       setRejectionTarget(candidate);
       setRejectionModalOpen(true);
       return;
     }
+
+    // Otherwise execute transition directly
     executeStatusTransition(candidate.id, targetStatus);
+  };
+
+  const handleSaveInterviewSchedule = async (data: InterviewScheduleData) => {
+    if (!interviewModalTarget) return;
+    const { candidate, isEdit } = interviewModalTarget;
+
+    saveInterviewSchedule(candidate.id, data);
+
+    if (isEdit) {
+      const actorName = currentUser ? `${currentUser.name} (${currentUser.role})` : 'HR Specialist';
+      const reason = `Interview rescheduled: ${data.date} ${data.hour}:${data.minute} (Link: ${data.meetLink})`;
+      try {
+        await updateCandidateStatusAction({
+          candidateId: candidate.id,
+          newStatus: 'interview',
+          oldStatus: 'interview',
+          actorName,
+          reason,
+        });
+        getAuditLogsAction().then((logs) => setAuditLogs(logs));
+      } catch {
+        // Non-blocking for edit
+      }
+
+      addToast(
+        'success',
+        'Jadwal Interview Diperbarui',
+        `${candidate.full_name} dijadwalkan pada ${data.date} pukul ${data.hour}:${data.minute}`
+      );
+      return;
+    }
+
+    const reason = `Interview scheduled: ${data.date} ${data.hour}:${data.minute} (Link: ${data.meetLink})`;
+    await executeStatusTransition(candidate.id, 'interview', reason);
+  };
+
+  const handleOpenEditInterview = (candidate: CandidateWithJob) => {
+    setInterviewModalTarget({ candidate, isEdit: true });
+  };
+
+  const handleRequestSoftDelete = (candidate: CandidateWithJob) => {
+    setDeleteCandidateTarget(candidate);
+  };
+
+  const handleConfirmSoftDelete = async () => {
+    if (!deleteCandidateTarget) return;
+    const candidate = deleteCandidateTarget;
+    setIsDeletingCandidate(true);
+
+    try {
+      const actorName = currentUser ? `${currentUser.name} (${currentUser.role})` : 'HR Specialist';
+      const result = await softDeleteCandidateAction(candidate.id, actorName);
+
+      if (result.success) {
+        setCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
+        setDeleteCandidateTarget(null);
+        getAuditLogsAction().then((logs) => setAuditLogs(logs));
+        addToast(
+          'success',
+          'Pelamar Berhasil Dihapus',
+          `${candidate.full_name} telah dihapus dari papan Kanban (data tetap aman di database).`
+        );
+      } else {
+        addToast('error', 'Gagal Menghapus Pelamar', result.error || 'Terjadi kesalahan pada server.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', 'Gagal Menghapus Pelamar', msg);
+    } finally {
+      setIsDeletingCandidate(false);
+    }
   };
 
   const handleConfirmRejection = (reason: string, isNotEligible: boolean) => {
@@ -671,6 +799,8 @@ export default function KanbanPage() {
                         router.push(`/fit-proper?candidateId=${encodeURIComponent(c.id)}`);
                       }}
                       onQuickMove={handleQuickMove}
+                      onDeleteCandidate={handleRequestSoftDelete}
+                      onEditInterview={handleOpenEditInterview}
                       onEditColumn={handleOpenEditModal}
                       onDeleteColumn={handleOpenDeleteModal}
                     />
@@ -751,7 +881,7 @@ export default function KanbanPage() {
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => handleConfirmSoftDelete(deleteTargetColumn.id)}
+                onClick={() => handleConfirmSoftDeleteColumn(deleteTargetColumn.id)}
                 className="bg-[#1a62ff] hover:bg-blue-700 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
               >
                 Yes
@@ -910,6 +1040,38 @@ export default function KanbanPage() {
           </div>
         </div>
       )}
+
+      {/* E. Status Change Confirmation Modal */}
+      <StatusConfirmModal
+        isOpen={Boolean(statusConfirmTarget)}
+        candidate={statusConfirmTarget?.candidate || null}
+        targetStatus={statusConfirmTarget?.targetStatus || null}
+        onConfirm={handleConfirmStatusChange}
+        onCancel={() => setStatusConfirmTarget(null)}
+      />
+
+      {/* F. Transfer Email Setting Modal (Interview) */}
+      <TransferEmailModal
+        isOpen={Boolean(interviewModalTarget)}
+        candidate={interviewModalTarget?.candidate || null}
+        initialData={
+          interviewModalTarget
+            ? interviewSchedules[interviewModalTarget.candidate.id] || null
+            : null
+        }
+        isEditMode={interviewModalTarget?.isEdit || false}
+        onClose={() => setInterviewModalTarget(null)}
+        onSave={handleSaveInterviewSchedule}
+      />
+
+      {/* G. Soft Delete Candidate Modal */}
+      <DeleteCandidateModal
+        isOpen={Boolean(deleteCandidateTarget)}
+        candidate={deleteCandidateTarget}
+        isLoading={isDeletingCandidate}
+        onConfirm={handleConfirmSoftDelete}
+        onCancel={() => setDeleteCandidateTarget(null)}
+      />
 
       {/* D. Toast Alerts */}
       <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">

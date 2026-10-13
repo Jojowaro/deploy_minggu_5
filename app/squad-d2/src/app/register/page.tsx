@@ -31,9 +31,12 @@ function RegistrationFormContent() {
   const [nik, setNik] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [skills, setSkills] = useState('');
   const [registrationWay, setRegistrationWay] = useState<RegistrationWayUi>('recommendation');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [dragActiveCert, setDragActiveCert] = useState(false);
 
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -42,10 +45,22 @@ function RegistrationFormContent() {
 
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const certFileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fullNameId = useId();
   const nikId = useId();
   const emailId = useId();
+  const phoneId = useId();
+  const skillsId = useId();
+
+  // Helper to count words (split by whitespace)
+  const countWords = (text: string): number => {
+    const trimmed = text.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).filter(Boolean).length;
+  };
+
+  const wordCount = countWords(skills);
 
   // Find job information via /api/squad-d2/jobs endpoint if jobId is present
   useEffect(() => {
@@ -94,13 +109,28 @@ function RegistrationFormContent() {
     if (!email.trim()) {
       errors.email = 'Email must be filled!';
     } else if (!emailRegex.test(email.trim())) {
-      errors.email = 'Invalid email format (example: nama@domain.com).';
+      errors.email = 'Invalid email format (example: name@domain.com).';
     }
 
     if (nik.trim() && !/^\d{16}$/.test(nik.trim())) {
-      errors.nik = 'NIK must be exactly 16 digits numerical (sesuai KTP).';
+      errors.nik = 'NIK must be exactly 16 digits numerical.';
     }
 
+    // Phone Number is mandatory
+    if (!phoneNumber.trim()) {
+      errors.phoneNumber = 'Phone Number must be filled!';
+    } else if (!/^[0-9+\s-]{8,20}$/.test(phoneNumber.trim())) {
+      errors.phoneNumber = 'Invalid phone number format.';
+    }
+
+    // Skills description is mandatory, maximum 20 words
+    if (!skills.trim()) {
+      errors.skills = 'Skill description must be filled!';
+    } else if (countWords(skills) > 20) {
+      errors.skills = `Skill description cannot exceed 20 words (current: ${countWords(skills)} words)!`;
+    }
+
+    // CV file is mandatory (PDF, max 5 MB)
     if (!selectedFile) {
       errors.cvFile = 'Curriculum Vitae (PDF) must be uploaded!';
     } else {
@@ -109,6 +139,16 @@ function RegistrationFormContent() {
       }
       if (selectedFile.size > 5 * 1024 * 1024) {
         errors.cvFile = 'The CV file size exceeds the 5 MB limit!';
+      }
+    }
+
+    // Certificate is optional, but if uploaded, must be PDF and <= 5MB
+    if (certificateFile) {
+      if (!certificateFile.name.toLowerCase().endsWith('.pdf') && certificateFile.type !== 'application/pdf') {
+        errors.certificateFile = 'Invalid file format. The certificate must be in .pdf format.';
+      }
+      if (certificateFile.size > 5 * 1024 * 1024) {
+        errors.certificateFile = 'The certificate file size exceeds the 5 MB limit!';
       }
     }
 
@@ -167,18 +207,70 @@ function RegistrationFormContent() {
     }
   };
 
+  const handleCertFileChange = (file: File | null) => {
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setClientErrors((prev) => ({
+        ...prev,
+        certificateFile: 'Invalid file format. The certificate must be in .pdf format.',
+      }));
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setClientErrors((prev) => ({
+        ...prev,
+        certificateFile: 'The certificate file size exceeds the 5 MB limit.',
+      }));
+      return;
+    }
+
+    setClientErrors((prev) => {
+      const next = { ...prev };
+      delete next.certificateFile;
+      return next;
+    });
+    setCertificateFile(file);
+  };
+
+  const handleCertDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActiveCert(true);
+    } else if (e.type === 'dragleave') {
+      setDragActiveCert(false);
+    }
+  };
+
+  const handleCertDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActiveCert(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleCertFileChange(e.dataTransfer.files[0]);
+    }
+  };
+
   const resetForm = () => {
     setFullName('');
     setNik('');
     setEmail('');
     setPhoneNumber('');
+    setSkills('');
     setRegistrationWay('recommendation');
     setSelectedFile(null);
+    setCertificateFile(null);
     setClientErrors({});
     setServerError(null);
     setSuccessInfo(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (certFileInputRef.current) {
+      certFileInputRef.current.value = '';
     }
   };
 
@@ -196,12 +288,16 @@ function RegistrationFormContent() {
     formData.append('fullName', fullName);
     if (nik.trim()) formData.append('nik', nik.trim());
     formData.append('email', email);
-    if (phoneNumber) formData.append('phoneNumber', phoneNumber);
+    formData.append('phoneNumber', phoneNumber.trim());
+    formData.append('skills', skills.trim());
     formData.append('registrationWay', registrationWay);
     if (jobId) {
       formData.append('jobId', jobId);
     }
     formData.append('cvFile', selectedFile);
+    if (certificateFile) {
+      formData.append('certificateFile', certificateFile);
+    }
 
     const submittedEmail = email.trim();
 
@@ -383,7 +479,7 @@ function RegistrationFormContent() {
                       });
                     }
                   }}
-                  placeholder="Enter your full name..."
+                  placeholder="Enter Name"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                   disabled={isPending}
                 />
@@ -425,7 +521,7 @@ function RegistrationFormContent() {
                       });
                     }
                   }}
-                  placeholder="Enter your Email..."
+                  placeholder="Enter Email"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                   disabled={isPending}
                 />
@@ -438,13 +534,13 @@ function RegistrationFormContent() {
               )}
             </div>
 
-            {/* FIELD 2.5: NIK (Nomor Induk Kependudukan - FR-D2-005: 16 Digits) */}
+            {/* FIELD 3: NIK */}
             <div className="w-full">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                   <label htmlFor={nikId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                    NIK (NOMOR INDUK KEPENDUDUKAN)
+                    NIK
                   </label>
                 </div>
                 <span className="text-[11px] text-slate-400 font-normal">Kunci Pendeteksi Sekunder (16 Digit)</span>
@@ -472,7 +568,7 @@ function RegistrationFormContent() {
                       });
                     }
                   }}
-                  placeholder="Enter 16-digit NIK (contoh: 320101...)..."
+                  placeholder="Enter NIK"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                   disabled={isPending}
                 />
@@ -485,8 +581,104 @@ function RegistrationFormContent() {
               )}
             </div>
 
+            {/* FIELD 4: PHONE NUMBER (Must Filled!) */}
+            <div className="w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={phoneId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                  PHONE NUMBER
+                </label>
+              </div>
+
+              <div
+                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                  clientErrors.phoneNumber ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
+                }`}
+              >
+                <input
+                  id={phoneId}
+                  name="phoneNumber"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    if (clientErrors.phoneNumber) {
+                      setClientErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.phoneNumber;
+                        return n;
+                      });
+                    }
+                  }}
+                  placeholder="Enter Phone Number"
+                  className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
+                  disabled={isPending}
+                />
+              </div>
+              {clientErrors.phoneNumber && (
+                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{clientErrors.phoneNumber}</span>
+                </p>
+              )}
+            </div>
+
+            {/* FIELD 5: SKILL DESCRIPTION (Must filled, Max 20 Words!) */}
+            <div className="w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={skillsId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                  SKILL DESCRIPTION (Please tell your confidence skill based on your experience in 20 Words)
+                </label>
+              </div>
+
+              <div
+                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                  clientErrors.skills ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
+                }`}
+              >
+                <input
+                  id={skillsId}
+                  name="skills"
+                  type="text"
+                  value={skills}
+                  onChange={(e) => {
+                    setSkills(e.target.value);
+                    if (clientErrors.skills) {
+                      setClientErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.skills;
+                        return n;
+                      });
+                    }
+                  }}
+                  placeholder="Enter Skill Description"
+                  className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
+                  disabled={isPending}
+                />
+              </div>
+
+              <div className="flex items-center justify-between mt-1 px-1">
+                {clientErrors.skills ? (
+                  <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{clientErrors.skills}</span>
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <span
+                  className={`text-xs font-semibold ${
+                    wordCount > 20 ? 'text-rose-600 font-bold' : 'text-slate-400'
+                  }`}
+                >
+                  {wordCount}/20
+                </span>
+              </div>
+            </div>
+
             {/* ================================================================= */}
-            {/* FIELD 3: CURRICULUM VITAE (PDF) - FULL WIDTH DROPZONE             */}
+            {/* FIELD 6: CURRICULUM VITAE (PDF) - FULL WIDTH DROPZONE             */}
             {/* ================================================================= */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
@@ -496,7 +688,7 @@ function RegistrationFormContent() {
                 </label>
               </div>
 
-              {/* Upload Dropzone Box (Full Width, Matching Image 1) */}
+              {/* Upload Dropzone Box (Full Width, Matching Mockup) */}
               <div
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -577,6 +769,105 @@ function RegistrationFormContent() {
                 <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   <span>{clientErrors.cvFile}</span>
+                </p>
+              )}
+            </div>
+
+            {/* ================================================================= */}
+            {/* FIELD 7: CERTIFICATE (PDF) - OPTIONAL DROPZONE                    */}
+            {/* ================================================================= */}
+            <div className="w-full">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
+                  <label className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                    CERTIFICATE (PDF)
+                  </label>
+                </div>
+                <span className="text-[11px] text-slate-400 font-normal">Optional</span>
+              </div>
+
+              {/* Upload Dropzone Box (Full Width, Matching Mockup) */}
+              <div
+                onDragEnter={handleCertDrag}
+                onDragLeave={handleCertDrag}
+                onDragOver={handleCertDrag}
+                onDrop={handleCertDrop}
+                onClick={() => certFileInputRef.current?.click()}
+                className={`relative w-full rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center p-8 sm:p-12 md:p-14 cursor-pointer ${
+                  dragActiveCert
+                    ? 'border-blue-600 bg-blue-50/70 scale-[0.995]'
+                    : clientErrors.certificateFile
+                    ? 'border-rose-500 bg-rose-50/30'
+                    : 'border-neutral-700 bg-neutral-200/80 hover:bg-neutral-200'
+                }`}
+              >
+                <input
+                  ref={certFileInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleCertFileChange(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                  disabled={isPending}
+                />
+
+                {/* Upload Icon (Tray with arrow up) */}
+                <div className="mb-3 text-neutral-600 flex items-center justify-center">
+                  <svg
+                    className="w-14 h-14"
+                    viewBox="0 0 56 56"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M28 10L16 22H24V34H32V22H40L28 10Z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="M12 36V44H44V36H40V40H16V36H12Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </div>
+
+                <p className="text-xs md:text-sm font-bold tracking-widest text-neutral-600 uppercase text-center">
+                  UPLOAD YOUR FILE HERE
+                </p>
+
+                {/* Selected File Card Preview */}
+                {certificateFile && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-4 flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-300 shadow-sm text-xs font-semibold text-slate-800 max-w-full"
+                  >
+                    <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="truncate max-w-[200px] sm:max-w-xs md:max-w-md">{certificateFile.name}</span>
+                    <span className="text-slate-400 font-normal shrink-0">
+                      ({(certificateFile.size / (1024 * 1024)).toFixed(2)} MB)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCertificateFile(null);
+                        if (certFileInputRef.current) certFileInputRef.current.value = '';
+                      }}
+                      className="text-slate-400 hover:text-rose-600 p-1 rounded-full ml-1"
+                      aria-label="Hapus sertifikat terpilih"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {clientErrors.certificateFile && (
+                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{clientErrors.certificateFile}</span>
                 </p>
               )}
             </div>

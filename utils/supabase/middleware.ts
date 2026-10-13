@@ -52,6 +52,15 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Server Actions and API endpoints must never be redirected to HTML login page
+  // (Next.js Server Actions expect RSC stream; 307 redirects cause 'An unexpected response was received from the server')
+  const isServerAction = request.headers.has("next-action") || request.headers.has("x-action");
+  const isApiRoute = pathname.startsWith("/api/");
+
+  if (isServerAction || isApiRoute) {
+    return supabaseResponse;
+  }
+
   // Public paths allowed without login (Jobs & Registration Form)
   const isPublicRoute =
     pathname === "/login" ||
@@ -63,9 +72,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/jobs") ||
     pathname.startsWith("/squad-d2/src/app/register") ||
     pathname.startsWith("/squad-d2/src/app/jobs") ||
-    pathname.startsWith("/api/squad-d2/jobs") ||
-    pathname.startsWith("/api/squad-d2/register") ||
-    pathname.startsWith("/api/squad-d2/repeat-applicants") ||
+    pathname.startsWith("/api/") ||
     pathname.startsWith("/auth/");
 
   // Protected system routes (Kanban and Fit & Proper)

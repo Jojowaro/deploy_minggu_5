@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   uploadApplicantCv, 
+  uploadApplicantCertificate,
   insertCandidate, 
   getActiveJobPostId,
   getJobPostById 
@@ -95,17 +96,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let rawNik = '';
     let rawEmail = '';
     let rawPhoneNumber = '';
+    let rawSkills = '';
     let rawRegistrationWay = '';
     let rawJobId = '';
     let fileArrayBuffer: ArrayBuffer | null = null;
     let fileName = 'resume.pdf';
+    let certArrayBuffer: ArrayBuffer | null = null;
+    let certFileName = '';
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       rawFullName = (formData.get('fullName') as string) || '';
       rawNik = (formData.get('nik') as string) || (formData.get('nikNumber') as string) || '';
       rawEmail = (formData.get('email') as string) || '';
-      rawPhoneNumber = (formData.get('phoneNumber') as string) || '';
+      rawPhoneNumber = (formData.get('phoneNumber') as string) || (formData.get('phone') as string) || '';
+      rawSkills = (formData.get('skills') as string) || (formData.get('skillDescription') as string) || '';
       rawRegistrationWay = (formData.get('registrationWay') as string) || '';
       rawJobId = (formData.get('jobId') as string) || '';
 
@@ -114,12 +119,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         fileName = cvFile.name || 'resume.pdf';
         fileArrayBuffer = await cvFile.arrayBuffer();
       }
+
+      const certFile = (formData.get('certificateFile') as File | null) || (formData.get('certificate') as File | null);
+      if (certFile && typeof certFile.arrayBuffer === 'function' && certFile.size > 0) {
+        certFileName = certFile.name || 'certificate.pdf';
+        certArrayBuffer = await certFile.arrayBuffer();
+      }
     } else if (contentType.includes('application/json')) {
       const json = await request.json();
       rawFullName = json.fullName || '';
       rawNik = json.nik || json.nikNumber || '';
       rawEmail = json.email || '';
-      rawPhoneNumber = json.phoneNumber || '';
+      rawPhoneNumber = json.phoneNumber || json.phone || '';
+      rawSkills = json.skills || json.skillDescription || '';
       rawRegistrationWay = json.registrationWay || '';
       rawJobId = json.jobId || '';
 
@@ -141,48 +153,80 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // 3. Validations (FR-D2-005 Validation Rules Matrix & FR-D2-001)
+    // 3. Validations
     const errors: Record<string, string[]> = {};
     const fullName = sanitizeText(rawFullName);
     if (!fullName) {
-      errors.fullName = ['Nama Lengkap wajib diisi.'];
+      errors.fullName = ['Full Name must be filled!'];
     } else if (fullName.length < 2) {
-      errors.fullName = ['Nama Lengkap minimal 2 karakter.'];
+      errors.fullName = ['Full name must be at least 2 characters!'];
     } else if (fullName.length > 100) {
-      errors.fullName = ['Nama Lengkap maksimal 100 karakter.'];
+      errors.fullName = ['Full name maximum 100 characters!'];
     }
 
     const email = sanitizeText(rawEmail).toLowerCase();
     if (!email) {
-      errors.email = ['Email wajib diisi.'];
+      errors.email = ['Email must be filled!'];
     } else if (!EMAIL_REGEX.test(email)) {
-      errors.email = ['Format email tidak valid (contoh: nama@domain.com).'];
+      errors.email = ['Invalid email format (example: name@domain.com).'];
     } else if (email.length > 255) {
-      errors.email = ['Email maksimal 255 karakter.'];
+      errors.email = ['Email maximum 255 characters!'];
     }
 
-    // NIK validation (FR-D2-005: 16 digits numerical)
+    // NIK validation (16 digits numerical)
     const nik = rawNik ? sanitizeText(rawNik).replace(/\D/g, '') : null;
     if (rawNik && (!nik || nik.length !== 16)) {
-      errors.nik = ['NIK Pelamar harus berupa tepat 16 digit angka (sesuai standar KTP).'];
+      errors.nik = ['NIK must be exactly 16 digits numerical.'];
+    }
+
+    // Phone Number validation (Must filled!)
+    const phoneNumber = sanitizeText(rawPhoneNumber);
+    if (!phoneNumber) {
+      errors.phoneNumber = ['Phone Number must be filled!'];
+    } else if (!/^[0-9+\s-]{8,20}$/.test(phoneNumber)) {
+      errors.phoneNumber = ['Invalid phone number format.'];
+    }
+
+    // Skill Description validation (Must filled, max 20 words!)
+    const skills = sanitizeText(rawSkills);
+    if (!skills) {
+      errors.skills = ['Skill Description must be filled!'];
+    } else {
+      const wordCount = skills.split(/\s+/).filter(Boolean).length;
+      if (wordCount > 20) {
+        errors.skills = [`Skill description maximum 20 words (current: ${wordCount} words)!`];
+      }
     }
 
     const dbRegistrationWay = normalizeRegistrationWay(rawRegistrationWay);
 
-    // TR-D2-001 TR-06: MIME application/pdf, max 5 MB, PDF header signature verification
+    // CV file validation (Required PDF, max 5 MB)
     if (!fileArrayBuffer || fileArrayBuffer.byteLength === 0) {
-      errors.cvFile = ['File Curriculum Vitae (PDF) wajib diunggah.'];
+      errors.cvFile = ['Curriculum Vitae (PDF) must be uploaded!'];
     } else {
       const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
       if (fileArrayBuffer.byteLength > MAX_SIZE) {
-        errors.cvFile = ['Ukuran file PDF melebihi batas maksimal 5 MB.'];
+        errors.cvFile = ['CV file size exceeds the 5 MB limit.'];
       }
 
       // Check PDF header signature '%PDF-'
       const headerBytes = new Uint8Array(fileArrayBuffer.slice(0, 5));
       const headerString = String.fromCharCode(...headerBytes);
       if (!headerString.startsWith('%PDF-')) {
-        errors.cvFile = ['File yang diunggah bukan file PDF yang valid atau rusak.'];
+        errors.cvFile = ['Uploaded CV file is not a valid PDF.'];
+      }
+    }
+
+    // Certificate file validation (Optional PDF, max 5 MB)
+    if (certArrayBuffer && certArrayBuffer.byteLength > 0) {
+      const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+      if (certArrayBuffer.byteLength > MAX_SIZE) {
+        errors.certificateFile = ['Certificate file size exceeds the 5 MB limit.'];
+      }
+      const certHeaderBytes = new Uint8Array(certArrayBuffer.slice(0, 5));
+      const certHeaderString = String.fromCharCode(...certHeaderBytes);
+      if (!certHeaderString.startsWith('%PDF-')) {
+        errors.certificateFile = ['Uploaded certificate file must be a PDF.'];
       }
     }
 
@@ -214,6 +258,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
         { status: 500 }
       );
+    }
+
+    // 5.1 Upload Certificate to Supabase Storage bucket 'd2_certificates' (Optional)
+    let certStoragePath: string | null = null;
+    if (certArrayBuffer && certArrayBuffer.byteLength > 0) {
+      const certUuid = crypto.randomUUID();
+      const certPath = `certificates/${certUuid}.pdf`;
+      const certUploadResult = await uploadApplicantCertificate(certPath, certArrayBuffer, 'application/pdf');
+      if (certUploadResult.error) {
+        console.warn('[Squad D2 API] Certificate upload warning:', certUploadResult.error);
+      } else {
+        certStoragePath = certUploadResult.data?.path || `d2_certificates/${certPath}`;
+      }
     }
 
     // ==============================================================================
@@ -298,7 +355,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       full_name: fullName,
       nik: nik || null,
       email: email,
-      phone_number: rawPhoneNumber ? sanitizeText(rawPhoneNumber) : null,
+      phone_number: phoneNumber,
+      skills: skills,
+      certificate_file_path: certStoragePath,
       registration_way: dbRegistrationWay,
       cv_file_path: uploadResult.data?.path || storagePath,
       stage: 'screening',
@@ -331,6 +390,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           application_date: new Date().toISOString(),
           application_round: applicationCount,
           status: 'applied',
+          assessment_notes: `Skills: ${skills}${certStoragePath ? ` | Certificate: ${certStoragePath}` : ''}`,
           is_read_only: true,
           is_deleted: false,
         };

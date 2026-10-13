@@ -13,6 +13,8 @@ export interface KanbanColumnProps {
   onDragStartCandidate: (e: React.DragEvent, candidate: CandidateWithJob) => void;
   onSelectCandidate?: (candidate: CandidateWithJob) => void;
   onQuickMove?: (candidate: CandidateWithJob, targetStatus: CandidateStatus) => void;
+  onDeleteCandidate?: (candidate: CandidateWithJob) => void;
+  onEditInterview?: (candidate: CandidateWithJob) => void;
   onEditColumn?: (column: KanbanColumnConfig) => void;
   onDeleteColumn?: (column: KanbanColumnConfig) => void;
 }
@@ -24,6 +26,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onDragStartCandidate,
   onSelectCandidate,
   onQuickMove,
+  onDeleteCandidate,
+  onEditInterview,
   onEditColumn,
   onDeleteColumn,
 }) => {
@@ -146,6 +150,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             onDragStart={onDragStartCandidate}
             onSelectCandidate={onSelectCandidate}
             onQuickMove={onQuickMove}
+            onDeleteCandidate={onDeleteCandidate}
+            onEditInterview={onEditInterview}
           />
         ))}
 

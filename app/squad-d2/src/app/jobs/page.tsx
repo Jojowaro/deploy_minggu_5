@@ -27,7 +27,20 @@ export default function JobListPage() {
           setIsLoading(false);
         }
       } catch (err) {
-        console.error('Failed to load jobs:', err);
+        console.warn('Failed to load jobs via server action, fetching directly via API:', err);
+        try {
+          const apiRes = await fetch('/api/squad-d2/jobs');
+          if (apiRes.ok) {
+            const apiJson = await apiRes.json();
+            if (apiJson.success && Array.isArray(apiJson.data) && isMounted) {
+              setJobs(apiJson.data);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (apiErr) {
+          console.error('Failed to load jobs via API:', apiErr);
+        }
         if (isMounted) {
           setIsLoading(false);
         }

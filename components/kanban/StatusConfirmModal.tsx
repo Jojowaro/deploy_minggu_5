@@ -69,8 +69,14 @@ export const StatusConfirmModal: React.FC<StatusConfirmModalProps> = ({
                 {candidate.full_name}
               </p>
               <p className="text-xs text-slate-500 truncate">
-                {candidate.job_title || 'Backend Engineer'}
+                {candidate.job_title || 'Pelamar'}
               </p>
+              {candidate.email && (
+                <p className="text-[11px] text-blue-600 font-semibold truncate mt-0.5 flex items-center gap-1">
+                  <span>✉</span>
+                  <span>{candidate.email}</span>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${currentConfig.badgeBg}`}>
@@ -89,7 +95,7 @@ export const StatusConfirmModal: React.FC<StatusConfirmModalProps> = ({
             <strong className="text-slate-900 font-bold underline decoration-blue-500 decoration-2">
               {targetConfig.badgeLabel}
             </strong>
-            ? informasi status akan dikirimkan kepada pelamar.
+            ? informasi status akan dikirimkan kepada pelamar{candidate.email ? ` (${candidate.email})` : ''}.
           </p>
 
           {/* Action Buttons */}

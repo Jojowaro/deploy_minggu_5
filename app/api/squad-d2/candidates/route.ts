@@ -126,6 +126,8 @@ export async function PATCH(request: NextRequest) {
       actorName = 'Budi Santoso (HR)',
       reason,
       isNotEligible = false,
+      interviewDetails,
+      jobTitle,
     } = body;
 
     if (!candidateId || !newStatus) {
@@ -150,6 +152,8 @@ export async function PATCH(request: NextRequest) {
       oldStatus,
       actorName,
       reason: finalReason,
+      interviewDetails,
+      jobTitle,
     });
 
     if (!result.success) {

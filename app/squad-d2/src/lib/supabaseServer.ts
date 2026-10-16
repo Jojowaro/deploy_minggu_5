@@ -8,6 +8,7 @@
 
 import { Candidate, CandidateWithJob, AuditLog, CandidateStatus, JobPost } from '../types/candidate';
 import { mapStatusToStage } from '../types/kanban';
+import type { InterviewDetails } from './emailService';
 
 export function getSupabaseUrl(): string {
   return (
@@ -262,120 +263,99 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
   return fallbackJobId;
 }
 
-/**
- * Default fallback active job positions (derived from d1_job_positions)
- */
-export const DEFAULT_ACTIVE_JOB_POSTS: JobPost[] = [
-  {
-    id: 'b1333b20-de39-4e9c-a768-59bbf9a8e94f',
-    title: 'Accounting Associate 1 (Billing)',
-    department: 'Finance, Accounting & Tax',
-    status: 'active',
-    description: 'Menangani proses penagihan, pencatatan faktur, dan rekonsiliasi billing.',
-    tags: ['JP003', 'Billing', 'Finance', 'Full Time'],
-    location: 'HQ - Menara MTH',
-  },
-  {
-    id: '0870af53-59f3-4086-a7bc-9d7bb227d1e8',
-    title: 'Accounting Associate 2 (Billing)',
-    department: 'Finance, Accounting & Tax',
-    status: 'active',
-    description: 'Mendukung operasional penagihan piutang dan verifikasi transaksi keuangan.',
-    tags: ['JP004', 'Billing', 'Finance', 'Full Time'],
-    location: 'HQ - Menara MTH',
-  },
-  {
-    id: '9a20b5d6-6ac3-4824-93cd-98efc1c2d3fd',
-    title: 'HR Manager',
-    department: 'Human Capital & Culture',
-    status: 'active',
-    description: 'Mengelola operasional HR, manajemen talenta, dan hubungan industrial.',
-    tags: ['JP011', 'HR Management', 'Human Capital', 'Full Time'],
-    location: 'HQ - Menara MTH',
-  },
-  {
-    id: '3ec8499c-b00d-489e-980a-5936275a3b69',
-    title: 'Sales Executive 1',
-    department: 'Commercial & Customer Success',
-    status: 'active',
-    description: 'Melakukan ekspansi pasar, penawaran produk, dan pencapaian target penjualan.',
-    tags: ['JP018', 'Sales B2B', 'Commercial', 'Full Time'],
-    location: 'HQ - Menara MTH',
-  },
-  {
-    id: 'placeholder-xxx-future',
-    title: 'XXX',
-    department: 'Future Operations',
-    status: 'coming_soon' as any,
-    isPlaceholder: true,
-    description: '',
-    tags: [],
-    location: 'Location Pending',
-  },
-];
+import { DEFAULT_ACTIVE_JOB_POSTS } from '../constants/jobs';
+export { DEFAULT_ACTIVE_JOB_POSTS };
 
 /**
- * Fetch list of active job positions from Supabase d1_job_positions
+ * Fetch list of active job positions from Supabase d1_job_positions table in real-time
  */
 export async function getActiveJobPosts(): Promise<JobPost[]> {
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
   try {
-    const url = `${baseUrl}/rest/v1/d1_job_positions?status_posisi=ilike.Active&select=*&order=nama_posisi.asc`;
-    const res = await fetch(url, {
+    // 1. Query active positions from d1_job_positions table
+    let url = `${baseUrl}/rest/v1/d1_job_positions?status_posisi=ilike.Active&select=*&order=nama_posisi.asc`;
+    let res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
         'apikey': supabaseKey,
       },
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
 
+    let data: any[] = [];
     if (res.ok) {
-      const data: any[] = await res.json();
-      if (data && data.length > 0) {
-        const mapped: JobPost[] = data.map((item) => ({
-          id: item.id,
-          title: item.nama_posisi,
-          department: item.departemen || 'PT Andima Transportindo',
-          status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
-          created_at: item.created_at,
-          description: item.deskripsi_posisi || 'Bergabunglah bersama tim profesional PT Andima Transportindo dan dukung keunggulan logistik nasional.',
-          tags: [
-            item.job_code,
-            item.departemen,
-            item.location || 'HQ - Menara MTH',
-            'Full Time',
-          ].filter(Boolean),
-          location: item.location || 'HQ - Menara MTH',
-        }));
+      data = await res.json();
+    }
 
-        // Append coming soon placeholder card if not present
-        if (!mapped.some((j) => j.isPlaceholder || j.title === 'XXX')) {
-          mapped.push({
-            id: 'placeholder-xxx-future',
-            title: 'XXX',
-            department: 'Future Operations',
-            status: 'coming_soon' as any,
-            isPlaceholder: true,
-            description: '',
-            tags: [],
-            location: 'Location Pending',
-          });
-        }
-
-        return mapped;
+    // 2. If no explicit 'Active' rows found, load all non-deleted positions
+    if (!data || data.length === 0) {
+      const fallbackUrl = `${baseUrl}/rest/v1/d1_job_positions?status_posisi=neq.Deleted&select=*&order=nama_posisi.asc`;
+      const fallbackRes = await fetch(fallbackUrl, {
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+        cache: 'no-store',
+      });
+      if (fallbackRes.ok) {
+        data = await fallbackRes.json();
       }
     }
+
+    if (data && data.length > 0) {
+      const mapped: JobPost[] = data.map((item) => ({
+        id: item.id,
+        title: item.nama_posisi,
+        department: item.departemen || 'PT Andima Transportindo',
+        status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+        created_at: item.created_at,
+        description:
+          item.deskripsi_posisi ||
+          'Bergabunglah bersama tim profesional PT Andima Transportindo dan dukung keunggulan logistik nasional.',
+        tags: [
+          item.job_code,
+          item.departemen,
+          item.location || 'HQ - Menara MTH',
+          'Full Time',
+          'On-site',
+        ].filter(Boolean),
+        location: item.location || 'HQ - Menara MTH',
+      }));
+
+      // Automatically sync active jobs into d2_job_posts in background for candidate FK safety
+      mapped.forEach((job) => {
+        if (!job.isPlaceholder && job.title !== 'XXX') {
+          ensureJobPostInD2(job.id).catch(() => {});
+        }
+      });
+
+      // Append coming soon placeholder card if not present
+      if (!mapped.some((j) => j.isPlaceholder || j.title === 'XXX')) {
+        mapped.push({
+          id: 'placeholder-xxx-future',
+          title: 'XXX',
+          department: 'Future Operations',
+          status: 'coming_soon' as any,
+          isPlaceholder: true,
+          description: '',
+          tags: [],
+          location: 'Location Pending',
+        });
+      }
+
+      return mapped;
+    }
   } catch (err) {
-    console.warn('[Squad D2 Supabase] Failed to fetch active job positions from d1_job_positions, using fallback list', err);
+    console.warn('[Squad D2 Supabase] Failed to fetch active job positions from d1_job_positions, using fallback list:', err);
   }
 
   return DEFAULT_ACTIVE_JOB_POSTS;
 }
 
 /**
- * Fetch a single job position by ID from d1_job_positions
+ * Fetch a single job position by ID from d1_job_positions table
  */
 export async function getJobPostById(id: string): Promise<JobPost | null> {
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
@@ -388,27 +368,35 @@ export async function getJobPostById(id: string): Promise<JobPost | null> {
         'Authorization': `Bearer ${supabaseKey}`,
         'apikey': supabaseKey,
       },
+      cache: 'no-store',
     });
 
     if (res.ok) {
       const rows: any[] = await res.json();
       if (rows.length > 0) {
         const item = rows[0];
-        return {
+        const job: JobPost = {
           id: item.id,
           title: item.nama_posisi,
           department: item.departemen || 'PT Andima Transportindo',
           status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
           created_at: item.created_at,
-          description: item.deskripsi_posisi || 'Bergabunglah bersama tim profesional PT Andima Transportindo.',
+          description:
+            item.deskripsi_posisi ||
+            'Bergabunglah bersama tim profesional PT Andima Transportindo.',
           tags: [
             item.job_code,
             item.departemen,
             item.location || 'HQ - Menara MTH',
             'Full Time',
+            'On-site',
           ].filter(Boolean),
           location: item.location || 'HQ - Menara MTH',
         };
+
+        // Ensure synced into d2_job_posts
+        ensureJobPostInD2(job.id).catch(() => {});
+        return job;
       }
     }
   } catch (err) {
@@ -598,6 +586,8 @@ export async function updateCandidateStatusAndLog(params: {
   oldStatus: string;
   actorName?: string;
   reason?: string;
+  interviewDetails?: InterviewDetails;
+  jobTitle?: string;
 }): Promise<{
   success: boolean;
   candidate?: CandidateWithJob;
@@ -605,7 +595,7 @@ export async function updateCandidateStatusAndLog(params: {
   error?: string;
   latencyMs: number;
 }> {
-  const { candidateId, newStatus, oldStatus, actorName = 'Budi Santoso', reason } = params;
+  const { candidateId, newStatus, oldStatus, actorName = 'Budi Santoso', reason, interviewDetails, jobTitle } = params;
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
   const startTime = Date.now();
@@ -722,6 +712,62 @@ export async function updateCandidateStatusAndLog(params: {
       } catch (histErr) {
         console.warn('[Squad D2 Supabase] Warning: Failed to record rejection into d2_application_history:', histErr);
       }
+    }
+
+    // 4. Asynchronously send email notification specifically to candidate's registered email (non-blocking for < 200ms latency)
+    if (updatedCandidate && updatedCandidate.email) {
+      let interviewInfo = interviewDetails;
+      if (!interviewInfo && reason) {
+        const match = reason.match(/Interview (?:scheduled|rescheduled):\s*([^\s]+)\s*(\d{1,2}):(\d{2})\s*\(Link:\s*([^\)]+)\)/i);
+        if (match) {
+          interviewInfo = {
+            date: match[1],
+            hour: match[2],
+            minute: match[3],
+            meetLink: match[4],
+          };
+        }
+      }
+
+      import('./emailService')
+        .then(({ sendStatusUpdateEmail }) => {
+          return sendStatusUpdateEmail({
+            candidateEmail: updatedCandidate.email,
+            candidateName: updatedCandidate.full_name || 'Pelamar',
+            jobTitle: jobTitle || (updatedCandidate.job_title !== 'Unknown Position' ? updatedCandidate.job_title : undefined),
+            oldStatus,
+            newStatus,
+            actorName,
+            reason,
+            interviewDetails: interviewInfo,
+          });
+        })
+        .catch((emailErr) => {
+          console.error(`[Squad D2 Email] Async dispatch failed for <${updatedCandidate.email}>:`, emailErr);
+        });
+    } else {
+      // Resilient fallback: fetch email from d2_candidates if not returned in PATCH representation
+      fetch(`${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=full_name,email`, {
+        headers: { 'Authorization': `Bearer ${supabaseKey}`, 'apikey': supabaseKey },
+      })
+        .then((r) => r.json())
+        .then((rows) => {
+          if (rows && rows[0]?.email) {
+            import('./emailService').then(({ sendStatusUpdateEmail }) => {
+              sendStatusUpdateEmail({
+                candidateEmail: rows[0].email,
+                candidateName: rows[0].full_name || 'Pelamar',
+                jobTitle,
+                oldStatus,
+                newStatus,
+                actorName,
+                reason,
+                interviewDetails,
+              }).catch(() => {});
+            });
+          }
+        })
+        .catch(() => {});
     }
 
     const elapsed = Date.now() - startTime;

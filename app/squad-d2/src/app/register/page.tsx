@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { RegistrationWayUi, JobPost } from '../../types/candidate';
 import Header from '@/components/Header';
-import { DEFAULT_ACTIVE_JOB_POSTS } from '../../lib/supabaseServer';
+import { DEFAULT_ACTIVE_JOB_POSTS } from '../../constants/jobs';
 import Link from 'next/link';
 
 function RegistrationFormContent() {

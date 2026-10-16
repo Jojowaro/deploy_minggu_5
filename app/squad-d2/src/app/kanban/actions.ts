@@ -7,6 +7,7 @@ import {
   getAuditLogs,
   softDeleteCandidate
 } from '../../lib/supabaseServer';
+import { InterviewDetails } from '../../lib/emailService';
 
 export interface UpdateStatusInput {
   candidateId: string;
@@ -15,6 +16,8 @@ export interface UpdateStatusInput {
   actorName?: string;
   reason?: string;
   isNotEligible?: boolean;
+  interviewDetails?: InterviewDetails;
+  jobTitle?: string;
 }
 
 export interface UpdateStatusResult {
@@ -63,6 +66,8 @@ export async function updateCandidateStatusAction(
       oldStatus: input.oldStatus,
       actorName: input.actorName || 'HR Specialist',
       reason: finalReason,
+      interviewDetails: input.interviewDetails,
+      jobTitle: input.jobTitle,
     });
 
     if (!result.success) {

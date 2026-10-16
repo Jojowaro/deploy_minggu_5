@@ -111,10 +111,17 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
             TRANSFER EMAIL SETTING
           </h2>
 
-          <p className="text-center text-xs text-slate-500 mt-1 mb-6">
+          <p className="text-center text-xs text-slate-500 mt-1 mb-2">
             {isEditMode ? 'Perbarui jadwal interview untuk' : 'Atur jadwal interview dan pengiriman link kepada'}{' '}
             <strong className="text-slate-800 font-semibold">{candidate.full_name}</strong> ({candidate.job_title || 'Pelamar'})
           </p>
+
+          {candidate.email && (
+            <div className="flex items-center justify-center gap-1.5 text-xs text-blue-600 font-semibold mb-6">
+              <span>✉ Email Tujuan:</span>
+              <span className="bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">{candidate.email}</span>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium text-center">

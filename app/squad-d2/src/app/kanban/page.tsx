@@ -404,7 +404,8 @@ export default function KanbanPage() {
     candidateId: string,
     targetStatus: CandidateStatus,
     reason?: string,
-    isNotEligible?: boolean
+    isNotEligible?: boolean,
+    interviewDetails?: InterviewScheduleData
   ) => {
     const optimisticStartTime = performance.now();
 
@@ -447,6 +448,8 @@ export default function KanbanPage() {
         actorName,
         reason,
         isNotEligible,
+        interviewDetails,
+        jobTitle: candidate.job_title,
       });
     } catch (actionErr: unknown) {
       console.warn('[Kanban] Server action dispatch error, falling back to direct API:', actionErr);
@@ -466,6 +469,8 @@ export default function KanbanPage() {
             actorName,
             reason,
             isNotEligible,
+            interviewDetails,
+            jobTitle: candidate.job_title,
           }),
         });
         if (clientRes.ok) {
@@ -503,7 +508,7 @@ export default function KanbanPage() {
     addToast(
       'success',
       `Moved to ${targetCol.badgeLabel}`,
-      `${candidate.full_name} is now in ${targetCol.badgeLabel} stage (Audit log created in ${result.latencyMs}ms)`
+      `${candidate.full_name} is now in ${targetCol.badgeLabel} stage. Email terkirim ke ${candidate.email || 'pelamar'} (Audit log ${result.latencyMs}ms)`
     );
   };
 
@@ -561,6 +566,8 @@ export default function KanbanPage() {
           oldStatus: 'interview',
           actorName,
           reason,
+          interviewDetails: data,
+          jobTitle: candidate.job_title,
         });
         getAuditLogsAction().then((logs) => setAuditLogs(logs));
       } catch {
@@ -570,13 +577,13 @@ export default function KanbanPage() {
       addToast(
         'success',
         'Jadwal Interview Diperbarui',
-        `${candidate.full_name} dijadwalkan pada ${data.date} pukul ${data.hour}:${data.minute}`
+        `Jadwal ${candidate.full_name} (${data.date} ${data.hour}:${data.minute}) tersimpan. Email terkirim ke ${candidate.email || 'pelamar'}.`
       );
       return;
     }
 
     const reason = `Interview scheduled: ${data.date} ${data.hour}:${data.minute} (Link: ${data.meetLink})`;
-    await executeStatusTransition(candidate.id, 'interview', reason);
+    await executeStatusTransition(candidate.id, 'interview', reason, false, data);
   };
 
   const handleOpenEditInterview = (candidate: CandidateWithJob) => {

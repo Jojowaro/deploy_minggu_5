@@ -50,6 +50,11 @@ export const RejectionReasonModal: React.FC<RejectionReasonModalProps> = ({
               <p className="text-xs text-slate-500">
                 Moving <span className="font-semibold text-slate-800">{candidate.full_name}</span> to Rejected
               </p>
+              {candidate.email && (
+                <p className="text-[11px] text-red-600 font-semibold mt-0.5">
+                  ✉ Notifikasi email akan dikirim ke: {candidate.email}
+                </p>
+              )}
             </div>
           </div>
           <button

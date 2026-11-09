@@ -553,12 +553,32 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
       }
     }
 
+    // Count parallel applications by NIK or Email (Section 3D)
+    const emailCounts = new Map<string, number>();
+    const nikCounts = new Map<string, number>();
+    candRows.forEach((r) => {
+      if (r.email) {
+        const em = r.email.toLowerCase().trim();
+        emailCounts.set(em, (emailCounts.get(em) || 0) + 1);
+      }
+      if (r.nik) {
+        const nk = String(r.nik).trim();
+        nikCounts.set(nk, (nikCounts.get(nk) || 0) + 1);
+      }
+    });
+
     return candRows
       .filter((row) => row.stage !== 'deleted' && row.status !== 'deleted' && !row.rejection_reason?.startsWith('__SOFT_DELETED__'))
       .map((row) => {
         const d1Pos = posMap.get(row.job_id);
         const title = d1Pos?.nama_posisi || row.d2_job_posts?.title || 'Unknown Position';
         const department = d1Pos?.departemen || 'Operations';
+        const em = (row.email || '').toLowerCase().trim();
+        const nk = (row.nik || '').trim();
+        const parallelCount = Math.max(
+          emailCounts.get(em) || 1,
+          nikCounts.get(nk) || 1
+        );
 
         return {
           ...row,
@@ -569,6 +589,7 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
             department: department,
           },
           application_count: typeof row.application_count === 'number' ? row.application_count : 1,
+          parallel_applications_count: parallelCount,
         };
       });
   } catch (err) {
@@ -586,6 +607,9 @@ export async function updateCandidateStatusAndLog(params: {
   oldStatus: string;
   actorName?: string;
   reason?: string;
+  rejectedAtStage?: string;
+  employeeTier?: string;
+  employeeId?: string;
   interviewDetails?: InterviewDetails;
   jobTitle?: string;
 }): Promise<{
@@ -595,7 +619,18 @@ export async function updateCandidateStatusAndLog(params: {
   error?: string;
   latencyMs: number;
 }> {
-  const { candidateId, newStatus, oldStatus, actorName = 'Budi Santoso', reason, interviewDetails, jobTitle } = params;
+  const { 
+    candidateId, 
+    newStatus, 
+    oldStatus, 
+    actorName = 'Budi Santoso', 
+    reason, 
+    rejectedAtStage, 
+    employeeTier, 
+    employeeId, 
+    interviewDetails, 
+    jobTitle 
+  } = params;
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
   const startTime = Date.now();
@@ -613,6 +648,40 @@ export async function updateCandidateStatusAndLog(params: {
 
     if (reason !== undefined) {
       patchPayload.rejection_reason = reason;
+    }
+
+    if (newStatus === 'rejected') {
+      patchPayload.rejected_at_stage = rejectedAtStage || oldStatus;
+      patchPayload.final_status = 'rejected';
+    } else if (newStatus === 'hired') {
+      patchPayload.final_status = 'accepted';
+      patchPayload.stage = 'hired';
+      if (employeeTier) {
+        patchPayload.employee_tier = employeeTier;
+      }
+    }
+
+    // Save interview schedule if interview details are specified (Section 3B)
+    if (interviewDetails && (newStatus === 'interview' || newStatus === 'interviewed')) {
+      const schedulePayload = {
+        candidate_id: candidateId,
+        schedule_type: interviewDetails.scheduleType || 'online',
+        schedule_datetime: `${interviewDetails.date}T${interviewDetails.hour}:${interviewDetails.minute}:00.000Z`,
+        meeting_link: interviewDetails.meetLink || null,
+        location_address: interviewDetails.locationAddress || null,
+        room_name: interviewDetails.roomName || null,
+        contact_person: interviewDetails.contactPerson || null,
+        notes: interviewDetails.notes || null,
+      };
+      fetch(`${baseUrl}/rest/v1/d2_interview_schedules`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(schedulePayload),
+      }).catch((e) => console.warn('Interview schedule DB record error (safe to ignore if table pending):', e));
     }
 
     // 1. Prepare PATCH request for candidate record in d2_candidates

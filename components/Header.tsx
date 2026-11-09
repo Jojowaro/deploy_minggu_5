@@ -144,14 +144,20 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2.5 select-none p-1 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-left"
             title="Klik untuk opsi akun"
           >
-            <div className="w-8 h-8 rounded-full bg-[#a7f3d0] text-[#065f46] flex items-center justify-center text-xs font-bold shrink-0 shadow-xs ring-1 ring-emerald-300/60">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-xs ring-1 ${
+                activeRole.toLowerCase().includes('manager')
+                  ? 'bg-purple-100 text-purple-800 ring-purple-300/70'
+                  : 'bg-emerald-100 text-emerald-800 ring-emerald-300/70'
+              }`}
+            >
               {activeInitials}
             </div>
             <div className="flex flex-col text-left">
               <span className="text-xs font-bold text-slate-900 leading-tight">
                 {activeName}
               </span>
-              <span className="text-[10px] font-medium text-slate-500 leading-tight mt-0.5">
+              <span className="text-[10px] font-semibold text-slate-500 leading-tight mt-0.5">
                 {activeRole}
               </span>
             </div>
@@ -170,7 +176,13 @@ export const Header: React.FC<HeaderProps> = ({
                 <p className="text-[11px] text-slate-500 truncate mt-0.5">
                   {profile?.email || 'Logged in user'}
                 </p>
-                <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span
+                  className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    activeRole.toLowerCase().includes('manager')
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
                   {activeRole}
                 </span>
               </div>

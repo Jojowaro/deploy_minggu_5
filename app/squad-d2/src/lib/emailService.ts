@@ -4,7 +4,12 @@ export interface InterviewDetails {
   date: string;
   hour: string;
   minute: string;
-  meetLink: string;
+  scheduleType?: 'online' | 'onsite';
+  meetLink?: string;
+  locationAddress?: string;
+  roomName?: string;
+  contactPerson?: string;
+  notes?: string;
 }
 
 export interface StatusEmailParams {
@@ -47,14 +52,16 @@ function getTransporter() {
 function getStatusBadgeColor(status: string): { bg: string; text: string; label: string } {
   switch (status.toLowerCase()) {
     case 'applied':
-      return { bg: '#3b82f6', text: '#ffffff', label: 'Applied (Screening)' };
+      return { bg: '#3b82f6', text: '#ffffff', label: 'Candidate (Pool Pelamar)' };
     case 'assessment':
-      return { bg: '#f59e0b', text: '#ffffff', label: 'Assessment' };
+      return { bg: '#f59e0b', text: '#ffffff', label: 'Screening (Penyaringan Berkas)' };
     case 'interview':
     case 'interviewed':
-      return { bg: '#8b5cf6', text: '#ffffff', label: 'Interviewed' };
+      return { bg: '#8b5cf6', text: '#ffffff', label: 'Interviewed (Wawancara)' };
     case 'offered':
-      return { bg: '#10b981', text: '#ffffff', label: 'Offered' };
+      return { bg: '#10b981', text: '#ffffff', label: 'Offered (Penawaran Kerja)' };
+    case 'hired':
+      return { bg: '#047857', text: '#ffffff', label: 'Hired (Karyawan Resmi)' };
     case 'rejected':
       return { bg: '#ef4444', text: '#ffffff', label: 'Rejected' };
     default:
@@ -78,59 +85,95 @@ function generateEmailHtml(params: StatusEmailParams): { subject: string; html: 
     subject = `[Andima HRMS] Berkas Lamaran Diterima - ${jobTitle}`;
     stageDescription = `
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
-        Berkas lamaran Anda untuk posisi <strong>${jobTitle}</strong> telah kami terima dan saat ini sedang berada pada tahap <strong>Pemeriksaan Berkas (Screening)</strong>.
+        Berkas lamaran Anda untuk posisi <strong>${jobTitle}</strong> telah kami terima dan terdaftar dalam pangkalan data kandidat PT Andima Transportindo.
       </p>
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
-        Tim rekrutmen kami akan melakukan evaluasi profil dan kelengkapan dokumen Anda. Kami akan mengabari Anda kembali mengenai tahapan berikutnya.
+        Tim rekrutmen kami akan melakukan evaluasi profil dan kelengkapan dokumen Anda pada tahap berikutnya.
       </p>
     `;
   } else if (normalizedStatus === 'assessment') {
-    subject = `[Andima HRMS] Undangan Tahap Asesmen - ${jobTitle}`;
+    subject = `[Andima HRMS] Tahap Screening & Evaluasi Berkas - ${jobTitle}`;
     stageDescription = `
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
-        Selamat! Berdasarkan hasil peninjauan berkas, Anda dinyatakan memenuhi kualifikasi awal dan dipersilakan melanjutkan ke tahap <strong>Asesmen (Assessment)</strong> untuk posisi <strong>${jobTitle}</strong>.
+        Selamat! Berdasarkan hasil seleksi awal, Anda telah masuk ke tahap <strong>Penyaringan &amp; Screening Kualifikasi</strong> untuk posisi <strong>${jobTitle}</strong>.
       </p>
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
-        Tim HR kami akan mengirimkan instruksi detail mengenai materi asesmen teknis/kompetensi secara berkala. Mohon pastikan email dan kontak Anda tetap aktif.
+        Tim HR Manager dan Recruiter sedang membandingkan kualifikasi kompetensi Anda terhadap standar kebutuhan posisi. Kami akan mengabari Anda setelah evaluasi selesai.
       </p>
     `;
   } else if (normalizedStatus === 'interview' || normalizedStatus === 'interviewed') {
-    subject = `[Andima HRMS] Undangan Wawancara Kerja (Interview) - ${jobTitle}`;
+    const isOnline = (interviewDetails?.scheduleType || 'online') === 'online';
+    subject = `[Andima HRMS] Undangan Wawancara Kerja (${isOnline ? 'Online' : 'Onsite'}) - ${jobTitle}`;
     stageDescription = `
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
-        Kabar baik! Anda telah lolos ke tahap <strong>Wawancara (Interview)</strong> untuk posisi <strong>${jobTitle}</strong> di PT Andima Transportindo.
+        Kabar baik! Anda telah dinyatakan lolos tahap evaluasi kualifikasi dan diundang ke tahap <strong>Wawancara (${isOnline ? 'Online Video Call' : 'Tatap Muka Onsite'})</strong> untuk posisi <strong>${jobTitle}</strong> di PT Andima Transportindo.
       </p>
     `;
 
     if (interviewDetails && interviewDetails.date) {
-      interviewBoxHtml = `
-        <div style="margin: 24px 0; padding: 20px; background-color: #f1f5f9; border-left: 4px solid #8b5cf6; border-radius: 8px;">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #1e293b; font-weight: 700;">
-            📅 Informasi Jadwal Interview
-          </h3>
-          <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #334155;">
-            <tr>
-              <td style="padding: 6px 0; font-weight: 600; width: 140px;">Tanggal:</td>
-              <td style="padding: 6px 0;">${interviewDetails.date}</td>
-            </tr>
-            <tr>
-              <td style="padding: 6px 0; font-weight: 600;">Waktu:</td>
-              <td style="padding: 6px 0;">${interviewDetails.hour}:${interviewDetails.minute} WIB</td>
-            </tr>
-            <tr>
-              <td style="padding: 6px 0; font-weight: 600;">Platform / Link:</td>
-              <td style="padding: 6px 0;">
-                <a href="${interviewDetails.meetLink}" style="color: #2563eb; text-decoration: underline; word-break: break-all;" target="_blank">
-                  ${interviewDetails.meetLink}
-                </a>
-              </td>
-            </tr>
-          </table>
-          <p style="margin: 14px 0 0 0; font-size: 12px; color: #64748b;">
-            Mohon hadir 5-10 menit sebelum waktu wawancara dimulai dengan koneksi internet yang stabil.
-          </p>
-        </div>
-      `;
+      if (isOnline) {
+        interviewBoxHtml = `
+          <div style="margin: 24px 0; padding: 20px; background-color: #f1f5f9; border-left: 4px solid #8b5cf6; border-radius: 8px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #1e293b; font-weight: 700;">
+              📅 Informasi Jadwal Interview (Online Daring)
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #334155;">
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600; width: 140px;">Tanggal:</td>
+                <td style="padding: 6px 0;">${interviewDetails.date}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Waktu:</td>
+                <td style="padding: 6px 0;">${interviewDetails.hour}:${interviewDetails.minute} WIB</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Platform / Link:</td>
+                <td style="padding: 6px 0;">
+                  <a href="${interviewDetails.meetLink || 'https://meet.google.com/andima-interview'}" style="color: #2563eb; text-decoration: underline; word-break: break-all;" target="_blank">
+                    ${interviewDetails.meetLink || 'https://meet.google.com/andima-interview'}
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin: 14px 0 0 0; font-size: 12px; color: #64748b;">
+              Mohon hadir 5-10 menit sebelum waktu wawancara dimulai dengan koneksi internet yang stabil dan ruangan yang kondusif.
+            </p>
+          </div>
+        `;
+      } else {
+        interviewBoxHtml = `
+          <div style="margin: 24px 0; padding: 20px; background-color: #f1f5f9; border-left: 4px solid #0f2342; border-radius: 8px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #1e293b; font-weight: 700;">
+              📍 Informasi Jadwal Interview (Onsite / Tatap Muka)
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #334155;">
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600; width: 140px;">Tanggal:</td>
+                <td style="padding: 6px 0;">${interviewDetails.date}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Waktu:</td>
+                <td style="padding: 6px 0;">${interviewDetails.hour}:${interviewDetails.minute} WIB</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Alamat Lokasi:</td>
+                <td style="padding: 6px 0;">${interviewDetails.locationAddress || 'Pool Andima Cakung, Jl. Raya Bekasi KM 24'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Ruang Wawancara:</td>
+                <td style="padding: 6px 0;">${interviewDetails.roomName || 'Ruang Rapat Operasional B Lantai 2'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">PIC Lapangan:</td>
+                <td style="padding: 6px 0;">${interviewDetails.contactPerson || 'Bpk. Hendra (Koordinator Pool)'}</td>
+              </tr>
+            </table>
+            <p style="margin: 14px 0 0 0; font-size: 12px; color: #64748b;">
+              Mohon hadir 15 menit lebih awal dan membawa berkas identitas asli (KTP/SIM) serta dokumen fisik yang dipersyaratkan.
+            </p>
+          </div>
+        `;
+      }
     }
   } else if (normalizedStatus === 'offered') {
     subject = `[Andima HRMS] Penawaran Pekerjaan (Job Offer) - ${jobTitle}`;
@@ -140,6 +183,16 @@ function generateEmailHtml(params: StatusEmailParams): { subject: string; html: 
       </p>
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
         Surat penawaran resmi (Offering Letter) beserta rincian kompensasi dan tanggal mulai bekerja akan segera disampaikan oleh Tim Human Capital kami.
+      </p>
+    `;
+  } else if (normalizedStatus === 'hired') {
+    subject = `[Andima HRMS] Selamat Datang di PT Andima Transportindo - ${jobTitle}`;
+    stageDescription = `
+      <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
+        Selamat! Anda telah resmi diterima dan bergabung sebagai bagian dari keluarga besar <strong>PT Andima Transportindo</strong> untuk posisi <strong>${jobTitle}</strong>.
+      </p>
+      <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
+        Nomor Induk Pegawai (NIP) dan akun sistem internal Anda telah diterbitkan oleh HR Manager. Tim Human Capital akan segera memandu proses orientasi dan jadwal mulai bekerja (onboarding).
       </p>
     `;
   } else if (normalizedStatus === 'rejected') {

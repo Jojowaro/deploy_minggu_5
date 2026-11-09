@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { 
   X, 
   User, 
@@ -12,7 +13,10 @@ import {
   ArrowRight, 
   CheckCircle, 
   AlertCircle,
-  ExternalLink 
+  ExternalLink,
+  ShieldCheck,
+  UserCheck,
+  Calendar
 } from 'lucide-react';
 import { CandidateWithJob, CandidateStatus, AuditLog } from '@/app/squad-d2/src/types/candidate';
 import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
@@ -23,6 +27,7 @@ export interface CandidateDetailModalProps {
   candidate: CandidateWithJob | null;
   onClose: () => void;
   onMoveCandidate: (candidateId: string, targetStatus: CandidateStatus) => void;
+  onProcessHiring?: (candidate: CandidateWithJob) => void;
 }
 
 export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
@@ -30,6 +35,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   candidate,
   onClose,
   onMoveCandidate,
+  onProcessHiring,
 }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'history' | 'audit'>('details');
   const [candidateLogs, setCandidateLogs] = useState<AuditLog[]>([]);
@@ -186,9 +192,9 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
                 <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Phone</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Nomor Telepon</span>
                   <span className="font-semibold text-slate-800">
-                    {candidate.phone_number || 'Not provided'}
+                    {candidate.phone_number || 'Tidak dicantumkan'}
                   </span>
                 </div>
               </div>
@@ -196,7 +202,33 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
                 <User className="w-4 h-4 text-purple-600 shrink-0" />
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Registration Track</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Nomor Induk Kependudukan (NIK)</span>
+                  <span className="font-semibold text-slate-800 font-mono">
+                    {candidate.nik || 'Belum diisi (Wajib saat screening)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <Calendar className="w-4 h-4 text-indigo-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Tanggal Melamar (Application Date)</span>
+                  <span className="font-semibold text-slate-800">
+                    {candidate.applied_at || candidate.created_at
+                      ? new Date(candidate.applied_at || candidate.created_at).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })
+                      : '-'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <Briefcase className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Jalur Pendaftaran (Source)</span>
                   <span className="font-semibold text-slate-800 capitalize">
                     {candidate.registration_way}
                   </span>
@@ -204,15 +236,24 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                <FileText className="w-4 h-4 text-rose-600 shrink-0" />
                 <div className="truncate flex-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Curriculum Vitae</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Berkas CV (PDF)</span>
                   <span className="font-medium text-slate-700 truncate block">
-                    {candidate.cv_file_path ? candidate.cv_file_path.split('/').pop() : 'No CV'}
+                    {candidate.cv_file_path ? candidate.cv_file_path.split('/').pop() : 'Tidak ada berkas'}
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* Rejection Stage Context (Section 2 No 6) */}
+            {candidate.status === 'rejected' && candidate.rejected_at_stage && (
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-center justify-between">
+                <span>
+                  <strong>Konteks Riwayat Penolakan:</strong> Pelamar gugur pada tahap <strong>{candidate.rejected_at_stage}</strong>.
+                </span>
+              </div>
+            )}
 
             {/* Pipeline Stage Transitions Selector */}
             <div className="py-4 border-t border-slate-100">
@@ -377,13 +418,38 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
         )}
 
         {/* Modal Footer */}
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-end">
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/fit-proper?candidateId=${candidate.id}`}
+              onClick={onClose}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-xs transition-colors cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Fit &amp; Proper</span>
+            </Link>
+
+            {onProcessHiring && (candidate.status === 'offered' || candidate.status === 'hired') && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onProcessHiring(candidate);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-colors cursor-pointer"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Konversi ke Karyawan</span>
+              </button>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+            className="px-5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
           >
-            Close
+            Tutup
           </button>
         </div>
       </div>

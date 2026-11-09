@@ -70,7 +70,8 @@ function HrmsLink({ label, href }: { label: string; href: string }) {
   const isActive =
     pathname === href ||
     (href === "/jobs" && (pathname === "/registration-form" || pathname === "/register" || pathname.startsWith("/jobs") || pathname.startsWith("/registration-form") || pathname.startsWith("/register") || pathname.startsWith("/squad-d2/src/app/jobs") || pathname.startsWith("/squad-d2/src/app/register"))) ||
-    (href === "/kanban" && (pathname === "/fit-proper" || pathname.startsWith("/kanban") || pathname.startsWith("/fit-proper") || pathname.startsWith("/squad-d2/src/app/kanban") || pathname.startsWith("/squad-d2/src/app/fit-proper")));
+    (href === "/kanban" && (pathname === "/kanban" || pathname.startsWith("/kanban") || pathname.startsWith("/squad-d2/src/app/kanban"))) ||
+    (href === "/fit-proper" && (pathname === "/fit-proper" || pathname.startsWith("/fit-proper") || pathname.startsWith("/squad-d2/src/app/fit-proper")));
 
   return (
     <Link
@@ -292,64 +293,49 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                     }`}
                     aria-expanded={isD2Expanded}
                   >
-                    <span className="flex items-center gap-2"><Layers3 size={14} /> D2</span>
+                    <span className="flex items-center gap-2 font-bold tracking-wide"><Layers3 size={14} /> RECRUITMENT PIPELINE</span>
                     <ChevronDown size={14} className={`transition-transform ${isD2Expanded ? "rotate-0" : "-rotate-90"}`} />
                   </button>
                   {isD2Expanded && (
                     <div className="ml-4 mt-1 border-l border-[#d9e2fc]/15 pl-2 space-y-1">
-                      {/* <HrmsLink label="Job List & Register" href="/jobs" /> */}
-                      <HrmsLink label="Kanban and Fit & Proper" href="/kanban" />
+                      {/* Pipeline Kandidat - Akses HR Recruiter & HR Manager */}
+                      <HrmsLink
+                        label={(account.role || '').toLowerCase().includes('manager') ? "Pipeline Kandidat (Supervisi)" : "Pipeline Kandidat (Operasional)"}
+                        href="/kanban"
+                      />
+
+                      {/* Evaluasi Kualifikasi (Fit & Proper) - Akses Utama HR Manager */}
+                      {(account.role || '').toLowerCase().includes('manager') ? (
+                        <HrmsLink label="Evaluasi Kualifikasi (Fit & Proper)" href="/fit-proper" />
+                      ) : (
+                        <HrmsLink label="Pratinjau Kualifikasi (Fit & Proper)" href="/fit-proper" />
+                      )}
+
+                      {/* Portal Lowongan Kerja */}
+                      <HrmsLink label="Portal Lowongan & Jobs" href="/jobs" />
                     </div>
                   )}
-                  
-                  {/* <button
-                    type="button"
-                    onClick={() => setIsD3Open((value) => !value)}
-                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${
-                      isD3Route ? "bg-[#1e3765] text-white" : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"
-                    }`}
-                    aria-expanded={isD3Expanded}
-                  >
-                    <span className="flex items-center gap-2"><Layers3 size={14} /> D3</span>
-                    <ChevronDown size={14} className={`transition-transform ${isD3Expanded ? "rotate-0" : "-rotate-90"}`} />
-                  </button>
-                  {isD3Expanded && (
-                    <div className="ml-4 mt-1 border-l border-[#d9e2fc]/15 pl-2">
-                      <HrmsLink label="Employee Profile Management" href="/employee-profile" />
-                      <PlannedD3Item label="Fingerprint Attendance Integration" />
-                      <HrmsLink label="Attendance History & Correction" href="/attendance" />
-                      <HrmsLink label="Attendance & Productivity Dashboard" href="/attendance-productivity" />
-                      <HrmsLink label="Feedback & Reward Management" href="/feedback-reward" />
-                      <HrmsLink label="Employee Report & Ticket" href="/employee-report-ticket" />
-                    </div>
-                  )} */}
-
-                  
                 </div>
-                
               </div>
-
-              
-              
             )}
-            {/* <button
-              type="button"
-              // onClick={() => setIsHrmsOpen((value) => !value)}
-              className="flex w-full items-center justify-between rounded-lg mb-2 px-3 py-2.5 text-white shadow-sm"
-            >
-              <span className="flex items-center gap-3"><SquareTerminal size={17} /> MID</span>
-              <ChevronDown size={16} className={`transition-transform -rotate-90`} />
-            </button> */}
           </div>
-          {/* <NavigationItem icon={<ShieldCheck size={16} />} label="MID" suffix={<ChevronRight size={15} />} /> */}
         </nav>
 
-        <div className="mt-auto pt-4">
+        <div className="mt-auto pt-4 space-y-2">
+          {/* Active Role Indicator */}
+          {/* <div className="px-3 py-2 rounded-xl bg-[#1e3765]/80 border border-[#d9e2fc]/15 flex items-center justify-between">
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-bold text-[#d9e2fc]/60 tracking-wider block">Role Sistem</span>
+              <span className="text-xs font-bold text-white truncate block">{account.role || 'HR Staff'}</span>
+            </div>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${(account.role || '').toLowerCase().includes('manager') ? 'bg-purple-400' : 'bg-blue-400'}`} />
+          </div> */}
+
           <button
             type="button"
             onClick={() => void handleSignOut()}
             disabled={isSigningOut || isInternalSigningOut}
-            className="w-full flex items-center justify-center gap-3 rounded-full border-2 border-[#D9364F] py-2 px-4 text-xs font-bold text-white hover:bg-[#D9364F]/10 transition-colors"
+            className="w-full flex items-center justify-center gap-3 rounded-full border-2 border-[#D9364F] py-2 px-4 text-xs font-bold text-white hover:bg-[#D9364F]/10 transition-colors cursor-pointer"
             aria-label="Logout"
             title="Logout"
           >

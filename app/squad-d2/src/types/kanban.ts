@@ -22,30 +22,35 @@ export interface KanbanColumnConfig {
 }
 
 /**
- * 5 Main Pipeline Columns strictly matching Figma Reference: HRMS D - HR.jpg
+ * 5 Main Pipeline Columns updated per Mas Bram's specification:
+ * 1. CANDIDATE (formerly APPLIED) - menampung seluruh berkas masuk sebelum diperiksa
+ * 2. SCREENING (formerly ASSESSMENT) - penyaringan berkas & kualifikasi awal
+ * 3. INTERVIEWED
+ * 4. OFFERED
+ * 5. REJECTED (dengan pencatatan rejected_at_stage)
  */
 export const KANBAN_COLUMNS: KanbanColumnConfig[] = [
   {
     id: 'applied',
-    label: 'APPLIED',
-    badgeLabel: 'Applied',
+    label: 'CANDIDATE',
+    badgeLabel: 'Candidate',
     colorHex: '#3b82f6',
     badgeBg: 'bg-[#3b82f6]',
     badgeText: 'text-white',
     headerBg: 'bg-[#e7eef8]',
     headerText: 'text-slate-700',
-    targetStage: 'screening',
+    targetStage: 'candidate',
   },
   {
     id: 'assessment',
-    label: 'ASSESSEMENT',
-    badgeLabel: 'Assessement',
+    label: 'SCREENING',
+    badgeLabel: 'Screening',
     colorHex: '#f59e0b',
     badgeBg: 'bg-[#f59e0b]',
     badgeText: 'text-white',
     headerBg: 'bg-[#e7eef8]',
     headerText: 'text-slate-700',
-    targetStage: 'assessment',
+    targetStage: 'screening',
   },
   {
     id: 'interview',
@@ -83,26 +88,36 @@ export const KANBAN_COLUMNS: KanbanColumnConfig[] = [
 ];
 
 export function getColumnConfig(status: CandidateStatus | string): KanbanColumnConfig {
-  const normalized = status === 'interviewed' ? 'interview' : status;
+  const s = (status || '').toLowerCase();
+  let normalized = s;
+  if (s === 'interviewed') normalized = 'interview';
+  if (s === 'candidate') normalized = 'applied';
+  if (s === 'screening') normalized = 'assessment';
+
   return (
     KANBAN_COLUMNS.find((col) => col.id === normalized) || KANBAN_COLUMNS[0]
   );
 }
 
 export function mapStatusToStage(status: CandidateStatus | string): CandidateStage {
-  switch (status) {
+  const s = (status || '').toLowerCase();
+  switch (s) {
+    case 'candidate':
     case 'applied':
-      return 'screening';
+      return 'candidate';
+    case 'screening':
     case 'assessment':
-      return 'assessment';
+      return 'screening';
     case 'interview':
     case 'interviewed':
       return 'interview';
     case 'offered':
       return 'offering';
+    case 'hired':
+      return 'hired';
     case 'rejected':
       return 'rejected';
     default:
-      return 'screening';
+      return 'candidate';
   }
 }

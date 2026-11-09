@@ -17,6 +17,7 @@ export interface KanbanColumnProps {
   onEditInterview?: (candidate: CandidateWithJob) => void;
   onEditColumn?: (column: KanbanColumnConfig) => void;
   onDeleteColumn?: (column: KanbanColumnConfig) => void;
+  onProcessHiring?: (candidate: CandidateWithJob) => void;
 }
 
 export const KanbanColumn: React.FC<KanbanColumnProps> = ({
@@ -30,6 +31,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onEditInterview,
   onEditColumn,
   onDeleteColumn,
+  onProcessHiring,
 }) => {
   const [isOver, setIsOver] = useState(false);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
@@ -152,6 +154,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             onQuickMove={onQuickMove}
             onDeleteCandidate={onDeleteCandidate}
             onEditInterview={onEditInterview}
+            onProcessHiring={onProcessHiring}
           />
         ))}
 

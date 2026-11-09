@@ -16,6 +16,9 @@ export interface UpdateStatusInput {
   actorName?: string;
   reason?: string;
   isNotEligible?: boolean;
+  rejectedAtStage?: string;
+  employeeTier?: string;
+  employeeId?: string;
   interviewDetails?: InterviewDetails;
   jobTitle?: string;
 }
@@ -66,6 +69,9 @@ export async function updateCandidateStatusAction(
       oldStatus: input.oldStatus,
       actorName: input.actorName || 'HR Specialist',
       reason: finalReason,
+      rejectedAtStage: input.rejectedAtStage,
+      employeeTier: input.employeeTier,
+      employeeId: input.employeeId,
       interviewDetails: input.interviewDetails,
       jobTitle: input.jobTitle,
     });

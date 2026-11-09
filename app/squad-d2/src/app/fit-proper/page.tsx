@@ -23,9 +23,14 @@ import {
   Sparkles,
   Info,
   Search,
+  ShieldCheck,
+  Lock,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { CandidateWithJob, FitProperRequirement, RequirementStatus } from '../../types/candidate';
 import { createClient } from '@/utils/supabase/client';
+import { getAuthenticatedUserProfile, UserProfile, isHRManager, isHRRecruiter } from '@/utils/auth';
 
 type ActiveTab = 'general' | 'calculation' | 'rejected_history';
 
@@ -33,6 +38,9 @@ function FitProperContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const candidateId = searchParams.get('candidateId') || searchParams.get('id') || 'c-rusdi-default';
+
+  // Current Logged-in User Profile & Role Permissions
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
   // Candidate Data State
   const [candidate, setCandidate] = useState<CandidateWithJob | null>(null);
@@ -73,6 +81,7 @@ function FitProperContent() {
 
   // Decision States (FR-03.3 & FR-03.4)
   const [isDecisionPending, setIsDecisionPending] = useState(false);
+  const [isPassModalOpen, setIsPassModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [decisionState, setDecisionState] = useState<string | null>(null);
@@ -120,6 +129,12 @@ function FitProperContent() {
 
         if (!hasAllowedRole && isMounted) {
           router.replace('/login?error=unauthorized_role');
+          return;
+        }
+
+        const profile = await getAuthenticatedUserProfile();
+        if (profile && isMounted) {
+          setCurrentUser(profile);
         }
       } catch {
         if (isMounted) {
@@ -133,6 +148,11 @@ function FitProperContent() {
       isMounted = false;
     };
   }, [router]);
+
+  // Derived role permission
+  const isManager = useMemo(() => {
+    return isHRManager(currentUser?.role, currentUser?.email);
+  }, [currentUser]);
 
   useEffect(() => {
     if (candidateId) {
@@ -628,15 +648,20 @@ function FitProperContent() {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Kanban Board</span>
+            <span>Kembali ke Recruitment Pipeline</span>
           </button>
         </div>
 
-        {/* Page Title matching Image 2 */}
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0d1527] tracking-tight">
-            FIT &amp; PROPER
-          </h1>
+        {/* Page Title with Functional Qualification Matrix Definition */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0d1527] tracking-tight">
+              FIT &amp; PROPER
+            </h1>
+            <p className="text-xs font-semibold text-slate-500 mt-0.5">
+              Qualification Matrix &amp; Employees Competency Chart (Matriks Komparasi Standar Posisi)
+            </p>
+          </div>
         </div>
 
         {/* ========================================================================= */}
@@ -681,6 +706,46 @@ function FitProperContent() {
               </div>
             )}
           </div>
+
+          {/* Role Access & Authority Banner */}
+          {currentUser && (
+            <div
+              className={`mb-6 p-4 rounded-2xl border text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
+                isManager
+                  ? 'bg-purple-50/90 border-purple-200 text-purple-950'
+                  : 'bg-amber-50/90 border-amber-200 text-amber-950'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    isManager ? 'bg-purple-600 text-white' : 'bg-amber-500 text-white'
+                  }`}
+                >
+                  {isManager ? <ShieldCheck className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+                </div>
+                <div>
+                  <p className="font-bold">
+                    {isManager
+                      ? `Role: HR Manager (${currentUser.name}) – Otoritas Pengambilan Keputusan Fit & Proper`
+                      : `Role: HR Recruiter (${currentUser.name}) – Mode Evaluasi & Pratinjau`}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {isManager
+                      ? 'Sebagai HR Manager, Anda berwenang mengatur kriteria kompetensi standar dan memutuskan status kandidat ("Lolos Fit & Proper" atau "Tolak") sesuai FR-D2-003.'
+                      : 'Sebagai HR Recruiter, Anda dapat meninjau kalkulasi kecocokan dan riwayat pelamar. Pengambilan keputusan akhir dan modifikasi ambang batas dikunci khusus untuk HR Manager (FR-D2-003).'}
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shrink-0 ${
+                  isManager ? 'bg-purple-200 text-purple-900' : 'bg-amber-200 text-amber-900'
+                }`}
+              >
+                {isManager ? 'HR Manager Authority' : 'Recruiter Preview'}
+              </span>
+            </div>
+          )}
 
           {/* 2. Navigation Tabs Container: 1 Card Full-Width Corner-to-Corner with Centered Buttons */}
           <div className="w-full rounded-2xl sm:rounded-full mb-8">
@@ -869,10 +934,78 @@ function FitProperContent() {
                       setIsSettingModalOpen(true);
                     }}
                     className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-colors cursor-pointer"
-                    title="Capability Fit Setting"
+                    title={isManager ? "Capability Fit Setting (Kelola Kriteria & Ambang Batas)" : "Lihat Pengaturan Capability Fit"}
                     aria-label="Capability Fit Setting"
                   >
                     <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Decision Action Bar (FR-D2-003 FR-03.3 & FR-03.4) */}
+              <div className="mt-5 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Keputusan Rekrutmen:
+                  </span>
+                  {candidate?.status === 'offered' && (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Kandidat Lolos Fit &amp; Proper</span>
+                    </span>
+                  )}
+                  {candidate?.status === 'rejected' && (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1.5">
+                      <X className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Kandidat Ditolak</span>
+                    </span>
+                  )}
+                  {candidate?.status !== 'offered' && candidate?.status !== 'rejected' && (
+                    <span className="text-xs text-slate-500 font-medium">
+                      Status kandidat saat ini: <strong className="text-slate-800 uppercase">{candidate?.status || 'Assessment'}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 justify-end">
+                  {/* Button 1: Lolos Fit & Proper */}
+                  <button
+                    type="button"
+                    disabled={!isManager || isDecisionPending}
+                    onClick={() => setIsPassModalOpen(true)}
+                    className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-xs ${
+                      isManager
+                        ? 'bg-[#0d9488] hover:bg-[#0f766e] active:scale-95 text-white cursor-pointer'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    }`}
+                    title={
+                      isManager
+                        ? 'Setujui kandidat ini lolos Fit & Proper (FR-03.3)'
+                        : 'Wewenang Terkunci: Hanya HR Manager yang berwenang mengambil keputusan Fit & Proper (FR-D2-003)'
+                    }
+                  >
+                    {isManager ? <Check className="w-4 h-4 stroke-[2.5]" /> : <Lock className="w-4 h-4 text-slate-400" />}
+                    <span>Lolos Fit &amp; Proper</span>
+                  </button>
+
+                  {/* Button 2: Tolak */}
+                  <button
+                    type="button"
+                    disabled={!isManager || isDecisionPending}
+                    onClick={() => setIsRejectModalOpen(true)}
+                    className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-xs ${
+                      isManager
+                        ? 'bg-[#e11d48] hover:bg-rose-700 active:scale-95 text-white cursor-pointer'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    }`}
+                    title={
+                      isManager
+                        ? 'Tolak kandidat berdasarkan evaluasi kompetensi (FR-03.3)'
+                        : 'Wewenang Terkunci: Hanya HR Manager yang berwenang mengambil keputusan Fit & Proper (FR-D2-003)'
+                    }
+                  >
+                    {isManager ? <X className="w-4 h-4 stroke-[2.5]" /> : <Lock className="w-4 h-4 text-slate-400" />}
+                    <span>Tolak</span>
                   </button>
                 </div>
               </div>
@@ -1176,26 +1309,30 @@ function FitProperContent() {
                       Requirement List
                     </h4>
                     <p className="text-xs text-slate-500">
-                      Kelola daftar seluruh requirements (kriteria) untuk kandidat
+                      {isManager
+                        ? 'Kelola daftar seluruh requirements (kriteria) untuk kandidat'
+                        : 'Daftar seluruh requirement standar untuk posisi ini (Pratinjau)'}
                     </p>
                   </div>
 
-                  {/* Add Requirement (Create) Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingReqInModal(true);
-                      setNewReqNameInModal('');
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Requirement</span>
-                  </button>
+                  {/* Add Requirement (Create) Button - Only for HR Manager */}
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingReqInModal(true);
+                        setNewReqNameInModal('');
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Requirement</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Inline Add Requirement Form */}
-                {isAddingReqInModal && (
+                {isAddingReqInModal && isManager && (
                   <form
                     onSubmit={handleAddNewRequirementInModal}
                     className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200/80 animate-in fade-in duration-100 flex flex-col sm:flex-row items-center gap-2.5"
@@ -1232,12 +1369,11 @@ function FitProperContent() {
                 <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden bg-white shadow-2xs">
                   {activeRequirements.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-400">
-                      Belum ada requirement. Klik tombol &ldquo;Add Requirement&rdquo; di atas untuk menambahkan.
+                      Belum ada requirement. {isManager && 'Klik tombol "Add Requirement" di atas untuk menambahkan.'}
                     </div>
                   ) : (
                     activeRequirements.map((req) => {
                       const isEditing = editingReqIdInModal === req.id;
-                      const isActionOpen = modalActionMenuId === req.id;
 
                       return (
                         <div
@@ -1245,7 +1381,7 @@ function FitProperContent() {
                           className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
                         >
                           {/* If editing inline */}
-                          {isEditing ? (
+                          {isEditing && isManager ? (
                             <div className="flex-1 flex items-center gap-2">
                               <input
                                 type="text"
@@ -1289,31 +1425,35 @@ function FitProperContent() {
                                 )}
                               </div>
 
-                              {/* Separate Edit & Delete Icon Buttons */}
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingReqIdInModal(req.id);
-                                    setEditingReqNameInModal(req.name);
-                                  }}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                                  title="Edit Requirement"
-                                  aria-label="Edit Requirement"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
+                              {/* Separate Edit & Delete Icon Buttons - Enabled only for HR Manager */}
+                              {isManager ? (
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingReqIdInModal(req.id);
+                                      setEditingReqNameInModal(req.name);
+                                    }}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                    title="Edit Requirement"
+                                    aria-label="Edit Requirement"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleSoftDeleteRequirement(req)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                  title="Hapus Requirement (Soft Delete)"
-                                  aria-label="Hapus Requirement"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSoftDeleteRequirement(req)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Hapus Requirement (Soft Delete)"
+                                    aria-label="Hapus Requirement"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">Standar Tetap</span>
+                              )}
                             </>
                           )}
                         </div>
@@ -1348,26 +1488,47 @@ function FitProperContent() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSettingModalOpen(false);
-                  setIsAddingReqInModal(false);
-                  setEditingReqIdInModal(null);
-                  setIsThresholdSelectOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSaveSetting()}
-                className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-95 cursor-pointer"
-              >
-                Simpan Pengaturan
-              </button>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              {!isManager ? (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs text-amber-800 font-medium">
+                    <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Mode Pratinjau: Wewenang pengubahan standar dimiliki oleh HR Manager.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingModalOpen(false);
+                      setIsThresholdSelectOpen(false);
+                    }}
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 transition-colors cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingModalOpen(false);
+                      setIsAddingReqInModal(false);
+                      setEditingReqIdInModal(null);
+                      setIsThresholdSelectOpen(false);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSetting()}
+                    className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    Simpan Pengaturan
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1486,7 +1647,71 @@ function FitProperContent() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 4: REJECTION CONFIRMATION & REASON (FR-03.3 & FR-03.4)               */}
+      {/* MODAL 4: PASS CONFIRMATION (FR-03.3 & FR-03.4: Lolos Fit & Proper)        */}
+      {/* ========================================================================= */}
+      {isPassModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Konfirmasi Lolos Fit &amp; Proper
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPassModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Sebagai <strong>HR Manager</strong>, apakah Anda yakin ingin menetapkan kandidat <strong>{candidateName}</strong> sebagai <em>Lolos Fit &amp; Proper</em>?
+              </p>
+
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 space-y-1">
+                <p className="font-bold flex items-center justify-between">
+                  <span>Pencapaian Kualifikasi:</span>
+                  <span>{currentPercentage}% / Target {threshold}%</span>
+                </p>
+                <p className="text-[11px] text-emerald-700">
+                  Status kandidat di database akan diperbarui ke tahapan penawaran (Offered) dan dicatat pada audit log.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPassModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isDecisionPending}
+                  onClick={() => {
+                    setIsPassModalOpen(false);
+                    handleExecuteDecision('Lolos Fit & Proper');
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0d9488] hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {isDecisionPending ? 'Menyimpan...' : 'Setujui Lolos'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: REJECTION CONFIRMATION & REASON (FR-03.3 & FR-03.4)               */}
       {/* ========================================================================= */}
       {isRejectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">

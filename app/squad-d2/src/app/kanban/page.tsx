@@ -14,7 +14,9 @@ import {
   ShieldCheck, 
   AlertCircle,
   Filter,
-  Plus
+  Plus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -27,6 +29,7 @@ import { KANBAN_COLUMNS, KanbanColumnConfig, getColumnConfig } from '../../types
 import { StatusConfirmModal } from '@/components/kanban/StatusConfirmModal';
 import { TransferEmailModal, InterviewScheduleData } from '@/components/kanban/TransferEmailModal';
 import { DeleteCandidateModal } from '@/components/kanban/DeleteCandidateModal';
+import { EmployeeProvisioningModal, EmployeeProvisioningData } from '@/components/kanban/EmployeeProvisioningModal';
 import { 
   getKanbanCandidatesAction, 
   updateCandidateStatusAction, 
@@ -35,7 +38,7 @@ import {
   UpdateStatusResult
 } from './actions';
 import { createClient } from '@/utils/supabase/client';
-import { getAuthenticatedUserProfile, UserProfile } from '@/utils/auth';
+import { getAuthenticatedUserProfile, UserProfile, isHRManager, isHRRecruiter } from '@/utils/auth';
 
 interface ToastMessage {
   id: string;
@@ -58,14 +61,27 @@ export default function KanbanPage() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showRejectedColumn, setShowRejectedColumn] = useState<boolean>(true);
 
-  // Dynamic Column Pipeline States (with localStorage persistence)
+  // Dynamic Column Pipeline States (with localStorage persistence & automatic migration to CANDIDATE & SCREENING)
   const [columns, setColumns] = useState<KanbanColumnConfig[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('andima_kanban_columns');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Auto-migrate legacy column labels: APPLIED -> CANDIDATE, ASSESSMENT -> SCREENING (Section 2 No 2 & 3)
+            return parsed.map((c: KanbanColumnConfig) => {
+              if (c.id === 'applied' && (c.label === 'APPLIED' || !c.label)) {
+                return { ...c, label: 'CANDIDATE', badgeLabel: 'Candidate' };
+              }
+              if (c.id === 'assessment' && (c.label === 'ASSESSEMENT' || c.label === 'ASSESSMENT')) {
+                return { ...c, label: 'SCREENING', badgeLabel: 'Screening' };
+              }
+              return c;
+            });
+          }
         } catch {
           // fallback
         }
@@ -114,6 +130,9 @@ export default function KanbanPage() {
   // Soft Delete Candidate Modal
   const [deleteCandidateTarget, setDeleteCandidateTarget] = useState<CandidateWithJob | null>(null);
   const [isDeletingCandidate, setIsDeletingCandidate] = useState(false);
+
+  // Employee Provisioning Modal (Section 3C)
+  const [provisioningTarget, setProvisioningTarget] = useState<CandidateWithJob | null>(null);
 
   // Interview schedules mapping (candidateId -> InterviewScheduleData)
   const [interviewSchedules, setInterviewSchedules] = useState<Record<string, InterviewScheduleData>>(() => {
@@ -323,13 +342,18 @@ export default function KanbanPage() {
     return map;
   }, [activeColumns, filteredCandidates]);
 
-  // Which columns to display (based on selectedStatusFilter)
+  // Which columns to display (based on selectedStatusFilter and showRejectedColumn toggle)
   const visibleColumns = useMemo(() => {
-    if (selectedStatusFilter === 'all') {
-      return activeColumns;
+    let cols = activeColumns;
+    if (selectedStatusFilter !== 'all') {
+      cols = cols.filter((col) => col.id === selectedStatusFilter);
     }
-    return activeColumns.filter((col) => col.id === selectedStatusFilter);
-  }, [activeColumns, selectedStatusFilter]);
+    // Perbaikan Model Data Dokumen Mas Bram Section 2 No 6: Kolom visual REJECTED dijadikan opsional/filter status
+    if (!showRejectedColumn && selectedStatusFilter === 'all') {
+      cols = cols.filter((col) => col.id !== 'rejected');
+    }
+    return cols;
+  }, [activeColumns, selectedStatusFilter, showRejectedColumn]);
 
   const handleOpenDeleteModal = (col: KanbanColumnConfig) => {
     setDeleteTargetColumn(col);
@@ -405,7 +429,10 @@ export default function KanbanPage() {
     targetStatus: CandidateStatus,
     reason?: string,
     isNotEligible?: boolean,
-    interviewDetails?: InterviewScheduleData
+    interviewDetails?: InterviewScheduleData,
+    employeeTier?: string,
+    employeeId?: string,
+    rejectedAtStage?: string
   ) => {
     const optimisticStartTime = performance.now();
 
@@ -414,7 +441,9 @@ export default function KanbanPage() {
     if (!candidate) return;
 
     const oldStatus = candidate.status;
-    if (oldStatus === targetStatus) return; // No change
+    if (oldStatus === targetStatus && !employeeTier) return; // No change unless employee tier is updated
+
+    const finalRejectedAtStage = targetStatus === 'rejected' ? (rejectedAtStage || oldStatus) : undefined;
 
     // 1. OPTIMISTIC UI UPDATE (< 50ms Target)
     const previousCandidates = [...candidates];
@@ -425,6 +454,10 @@ export default function KanbanPage() {
             ...c,
             status: targetStatus,
             rejection_reason: targetStatus === 'rejected' && isNotEligible ? 'Not Eligible: Permanent rejection' : c.rejection_reason,
+            rejected_at_stage: finalRejectedAtStage || c.rejected_at_stage,
+            employee_tier: employeeTier || c.employee_tier,
+            employee_id: employeeId || c.employee_id,
+            final_status: targetStatus === 'rejected' ? 'rejected' : employeeTier ? 'accepted' : c.final_status,
             updated_at: new Date().toISOString(),
           };
         }
@@ -448,6 +481,9 @@ export default function KanbanPage() {
         actorName,
         reason,
         isNotEligible,
+        rejectedAtStage: finalRejectedAtStage,
+        employeeTier,
+        employeeId,
         interviewDetails,
         jobTitle: candidate.job_title,
       });
@@ -469,6 +505,9 @@ export default function KanbanPage() {
             actorName,
             reason,
             isNotEligible,
+            rejectedAtStage: finalRejectedAtStage,
+            employeeTier,
+            employeeId,
             interviewDetails,
             jobTitle: candidate.job_title,
           }),
@@ -625,9 +664,49 @@ export default function KanbanPage() {
 
   const handleConfirmRejection = (reason: string, isNotEligible: boolean) => {
     if (!rejectionTarget) return;
-    executeStatusTransition(rejectionTarget.id, 'rejected', reason, isNotEligible);
+    const stageGugur = rejectionTarget.status;
+    executeStatusTransition(rejectionTarget.id, 'rejected', reason, isNotEligible, undefined, undefined, undefined, stageGugur);
     setRejectionModalOpen(false);
     setRejectionTarget(null);
+  };
+
+  const handleConfirmHiring = async (data: EmployeeProvisioningData) => {
+    if (!provisioningTarget) return;
+    const candidate = provisioningTarget;
+    setProvisioningTarget(null);
+
+    const actorName = currentUser ? `${currentUser.name} (${currentUser.role})` : 'HR Manager';
+    const reason = `Resmi dikonversi menjadi karyawan (${data.employeeTier}) dengan NIP: ${data.employeeId} - Mulai: ${data.startDate}`;
+
+    await executeStatusTransition(
+      candidate.id,
+      'offered',
+      reason,
+      false,
+      undefined,
+      data.employeeTier,
+      data.employeeId
+    );
+
+    // Update local state to reflect tier & employee ID
+    setCandidates((prev) =>
+      prev.map((c) =>
+        c.id === candidate.id
+          ? {
+              ...c,
+              employee_tier: data.employeeTier,
+              employee_id: data.employeeId,
+              final_status: 'accepted',
+            }
+          : c
+      )
+    );
+
+    addToast(
+      'success',
+      'Karyawan Resmi Diterbitkan!',
+      `${candidate.full_name} berhasil dikonversi ke status ${data.employeeTier.toUpperCase()} dengan NIP ${data.employeeId}. Akun sistem telah aktif.`
+    );
   };
 
   return (
@@ -638,10 +717,28 @@ export default function KanbanPage() {
       {/* Main Content Body */}
       <main className="flex-1 px-4 sm:px-6 md:px-8 py-6 w-full max-w-[1600px] mx-auto flex flex-col">
           {/* Page Heading matching Figma HRMS D - HR.jpg & Image 1 */}
-          <div className="mb-5">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              KANBAN
-            </h1>
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                  KANBAN
+                </h1>
+                {isHRManager(currentUser?.role) ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Supervisi HR Manager
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" /> Operasional HR Recruiter
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {isHRManager(currentUser?.role)
+                  ? 'Supervisi alur seleksi & monitoring riwayat audit trail rekrutmen PT Andima'
+                  : 'Pelacakan pipeline & pengelolaan tahapan kandidat pelamar (FR-D2-002)'}
+              </p>
+            </div>
           </div>
 
           {/* ========================================================================= */}
@@ -741,6 +838,27 @@ export default function KanbanPage() {
                   </button>
                 )}
               </div>
+
+              {/* Toggle Rejected Column (Dokumen Mas Bram Section 2 No 6: Kolom REJECTED visual dijadikan opsional/filter status) */}
+              <button
+                type="button"
+                onClick={() => setShowRejectedColumn(!showRejectedColumn)}
+                className={`h-11 px-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all shadow-2xs shrink-0 ${
+                  showRejectedColumn
+                    ? 'bg-white border-slate-200/90 text-slate-700 hover:bg-slate-50'
+                    : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/80'
+                }`}
+                title={showRejectedColumn ? 'Klik untuk sembunyikan kolom Rejected' : 'Klik untuk tampilkan kolom Rejected'}
+              >
+                {showRejectedColumn ? (
+                  <Eye className="w-4 h-4 text-slate-500" />
+                ) : (
+                  <EyeOff className="w-4 h-4 text-amber-600" />
+                )}
+                <span className="hidden md:inline">
+                  {showRejectedColumn ? 'Rejected: Visible' : 'Rejected: Hidden'}
+                </span>
+              </button>
             </div>
 
             {/* Active Search / Filter Feedback Bar */}
@@ -808,6 +926,7 @@ export default function KanbanPage() {
                       onQuickMove={handleQuickMove}
                       onDeleteCandidate={handleRequestSoftDelete}
                       onEditInterview={handleOpenEditInterview}
+                      onProcessHiring={(c) => setProvisioningTarget(c)}
                       onEditColumn={handleOpenEditModal}
                       onDeleteColumn={handleOpenDeleteModal}
                     />
@@ -853,6 +972,10 @@ export default function KanbanPage() {
         isOpen={Boolean(selectedCandidate)}
         candidate={selectedCandidate}
         onClose={() => setSelectedCandidate(null)}
+        onProcessHiring={(c) => {
+          setSelectedCandidate(null);
+          setProvisioningTarget(c);
+        }}
         onMoveCandidate={(id, status) => {
           setSelectedCandidate(null);
           handleDropCandidate(id, status);
@@ -1078,6 +1201,15 @@ export default function KanbanPage() {
         isLoading={isDeletingCandidate}
         onConfirm={handleConfirmSoftDelete}
         onCancel={() => setDeleteCandidateTarget(null)}
+      />
+
+      {/* H. Employee Provisioning Modal (Hired / Onboarding) */}
+      <EmployeeProvisioningModal
+        isOpen={Boolean(provisioningTarget)}
+        candidate={provisioningTarget}
+        currentUser={currentUser}
+        onClose={() => setProvisioningTarget(null)}
+        onConfirmHiring={handleConfirmHiring}
       />
 
       {/* D. Toast Alerts */}

@@ -8,14 +8,25 @@ export type RegistrationWayUi = 'scouting' | 'recommendation';
 
 export type RegistrationWayDb = 'scouting/interview-based' | 'recommendation-based';
 
-export type CandidateStage = 'screening' | 'assessment' | 'interview' | 'offering' | 'hired' | 'rejected';
+export type CandidateStage =
+  | 'candidate'
+  | 'screening'
+  | 'assessment'
+  | 'interview'
+  | 'offered'
+  | 'offering'
+  | 'hired'
+  | 'rejected';
 
 export type CandidateStatus =
+  | 'candidate'
   | 'applied'
+  | 'screening'
   | 'assessment'
   | 'interview'
   | 'interviewed'
   | 'offered'
+  | 'hired'
   | 'rejected'
   | 'in_review'
   | 'shortlisted';
@@ -34,6 +45,8 @@ export interface JobPost {
   isPlaceholder?: boolean;
 }
 
+export type EmployeeTier = 'trainee' | 'associate_trainee' | 'probationary_staff' | 'permanent' | 'contract';
+
 export interface Candidate {
   id: string;
   job_id: string;
@@ -46,9 +59,16 @@ export interface Candidate {
   stage: CandidateStage;
   status: CandidateStatus;
   rejection_reason?: string | null;
+  rejected_at_stage?: string | null;
   skills?: string | null;
+  skills_tagged?: boolean;
   certificate_file_path?: string | null;
   application_count?: number;
+  applied_at?: string;
+  final_status?: 'in_progress' | 'accepted' | 'rejected' | 'hired';
+  employee_tier?: EmployeeTier | string | null;
+  employee_id?: string | null;
+  parallel_applications_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +80,7 @@ export interface CandidateWithJob extends Candidate {
     department?: string;
   } | null;
   job_title?: string;
+  parallel_applications_count?: number;
 }
 
 export type RequirementStatus = 'Fullfilled' | 'Unfullfilled' | null;

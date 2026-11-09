@@ -362,6 +362,38 @@ export default function LoginPage() {
                       ? `Please wait ${countdown}s`
                       : "LOGIN"}
               </button>
+
+              {/* Quick Role Tester Selection */}
+              <div className="pt-2">
+                <div className="text-[11px] font-semibold text-slate-500 mb-1.5 flex items-center justify-between">
+                  <span>Pilih Akun Cepat (Testing Role):</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("yohana@andima.co.id");
+                      setPassword("griseldayoh123?");
+                    }}
+                    className="p-2 text-left rounded-lg border border-purple-200 bg-purple-50/70 hover:bg-purple-100 transition-colors text-[11px] cursor-pointer"
+                  >
+                    <div className="font-bold text-purple-900">👑 HR Manager (Yohana)</div>
+                    <div className="text-purple-700 truncate font-mono text-[10px]">yohana@andima.co.id</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("recruiter@andima.co.id");
+                      setPassword("Recruiter12345.");
+                    }}
+                    className="p-2 text-left rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100 transition-colors text-[11px] cursor-pointer"
+                  >
+                    <div className="font-bold text-blue-900">🎯 HR Recruiter</div>
+                    <div className="text-blue-700 truncate font-mono text-[10px]">recruiter@andima.co.id</div>
+                  </button>
+                </div>
+              </div>
+
               <p className="relative z-10 mt-4 text-center text-sm text-[#334155]">
                 Not login ?{" "}
                 <Link

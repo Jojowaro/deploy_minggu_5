@@ -284,6 +284,22 @@ export async function POST(request: NextRequest) {
         ? `Lolos Fit & Proper (Match Score: ${Math.round((state.requirements.filter((r) => r.status === 'Fullfilled').length / Math.max(1, state.requirements.filter((r) => !r.is_deleted).length)) * 100)}%)`
         : reason || 'Tidak memenuhi kualifikasi standar posisi (Gagal Fit & Proper)';
 
+      // Recalculate metrics for persistence
+      const activeReqs = state.requirements.filter((r) => !r.is_deleted);
+      const totalCount = activeReqs.length;
+      const fulfilledCount = activeReqs.filter((r) => r.status === 'Fullfilled').length;
+      const missingRequirements = Math.max(0, totalCount - fulfilledCount);
+      const percentage = totalCount > 0 ? Math.round((fulfilledCount / totalCount) * 100) : 0;
+      const isFit = totalCount > 0 && percentage >= state.threshold;
+
+      tryPersistToSupabase(state, {
+        totalCount,
+        fulfilledCount,
+        missingRequirements,
+        percentage,
+        capabilityFit: isFit ? 'FULLFILLED' : 'UNFULLFILLED',
+      });
+
       // Update candidate status and write immutable audit log to d2_audit_logs
       await updateCandidateStatusAndLog({
         candidateId,
@@ -291,6 +307,7 @@ export async function POST(request: NextRequest) {
         oldStatus: 'assessment',
         actorName,
         reason: changeReason,
+        jobTitle: state.positionTitle,
       });
 
       return NextResponse.json({

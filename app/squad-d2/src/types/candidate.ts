@@ -63,6 +63,8 @@ export interface Candidate {
   skills?: string | null;
   skills_tagged?: boolean;
   certificate_file_path?: string | null;
+  social_media?: string | null;
+  portfolio_url?: string | null;
   application_count?: number;
   applied_at?: string;
   final_status?: 'in_progress' | 'accepted' | 'rejected' | 'hired';

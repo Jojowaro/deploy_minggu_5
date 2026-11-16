@@ -31,6 +31,8 @@ function RegistrationFormContent() {
   const [nik, setNik] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [socialMedia, setSocialMedia] = useState('');
+  const [portfolioUrl, setPortfolioUrl] = useState('');
   const [skills, setSkills] = useState('');
   const [registrationWay, setRegistrationWay] = useState<RegistrationWayUi>('recommendation');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -51,6 +53,8 @@ function RegistrationFormContent() {
   const nikId = useId();
   const emailId = useId();
   const phoneId = useId();
+  const socialMediaId = useId();
+  const portfolioId = useId();
   const skillsId = useId();
 
   // Helper to count words (split by whitespace)
@@ -112,7 +116,10 @@ function RegistrationFormContent() {
       errors.email = 'Invalid email format (example: name@domain.com).';
     }
 
-    if (nik.trim() && !/^\d{16}$/.test(nik.trim())) {
+    // NIK is mandatory, must be 16 digits numerical
+    if (!nik.trim()) {
+      errors.nik = 'NIK must be filled!';
+    } else if (!/^\d{16}$/.test(nik.trim())) {
       errors.nik = 'NIK must be exactly 16 digits numerical.';
     }
 
@@ -121,6 +128,16 @@ function RegistrationFormContent() {
       errors.phoneNumber = 'Phone Number must be filled!';
     } else if (!/^[0-9+\s-]{8,20}$/.test(phoneNumber.trim())) {
       errors.phoneNumber = 'Invalid phone number format.';
+    }
+
+    // Social Media Username is mandatory
+    if (!socialMedia.trim()) {
+      errors.socialMedia = 'Social Media Username must be filled!';
+    }
+
+    // Skill Portofolio Link is mandatory
+    if (!portfolioUrl.trim()) {
+      errors.portfolioUrl = 'Skill Portofolio Link must be filled!';
     }
 
     // Skills description is mandatory, maximum 20 words
@@ -259,6 +276,8 @@ function RegistrationFormContent() {
     setNik('');
     setEmail('');
     setPhoneNumber('');
+    setSocialMedia('');
+    setPortfolioUrl('');
     setSkills('');
     setRegistrationWay('recommendation');
     setSelectedFile(null);
@@ -286,9 +305,11 @@ function RegistrationFormContent() {
 
     const formData = new FormData();
     formData.append('fullName', fullName);
-    if (nik.trim()) formData.append('nik', nik.trim());
+    formData.append('nik', nik.trim());
     formData.append('email', email);
     formData.append('phoneNumber', phoneNumber.trim());
+    formData.append('socialMedia', socialMedia.trim());
+    formData.append('portfolioUrl', portfolioUrl.trim());
     formData.append('skills', skills.trim());
     formData.append('registrationWay', registrationWay);
     if (jobId) {
@@ -455,7 +476,7 @@ function RegistrationFormContent() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={fullNameId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  FULL NAME
+                  FULL NAME*
                 </label>
               </div>
 
@@ -497,7 +518,7 @@ function RegistrationFormContent() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={emailId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  EMAIL
+                  EMAIL*
                 </label>
               </div>
 
@@ -540,7 +561,7 @@ function RegistrationFormContent() {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                   <label htmlFor={nikId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                    NIK
+                    NIK*
                   </label>
                 </div>
                 <span className="text-[11px] text-slate-400 font-normal">Kunci Pendeteksi Sekunder (16 Digit)</span>
@@ -586,7 +607,7 @@ function RegistrationFormContent() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={phoneId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  PHONE NUMBER
+                  PHONE NUMBER*
                 </label>
               </div>
 
@@ -623,12 +644,96 @@ function RegistrationFormContent() {
               )}
             </div>
 
-            {/* FIELD 5: SKILL DESCRIPTION (Must filled, Max 20 Words!) */}
+            {/* FIELD 5: SOCIAL MEDIA USERNAME (e.g Instagram, Tiktok) */}
+            <div className="w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={socialMediaId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                  SOCIAL MEDIA USERNAME (e.g Instagram, Tiktok)*
+                </label>
+              </div>
+
+              <div
+                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                  clientErrors.socialMedia ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
+                }`}
+              >
+                <input
+                  id={socialMediaId}
+                  name="socialMedia"
+                  type="text"
+                  value={socialMedia}
+                  onChange={(e) => {
+                    setSocialMedia(e.target.value);
+                    if (clientErrors.socialMedia) {
+                      setClientErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.socialMedia;
+                        return n;
+                      });
+                    }
+                  }}
+                  placeholder="Input Social Media"
+                  className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
+                  disabled={isPending}
+                />
+              </div>
+              {clientErrors.socialMedia && (
+                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{clientErrors.socialMedia}</span>
+                </p>
+              )}
+            </div>
+
+            {/* FIELD 6: SKILL PORTOFOLIO LINK (e.g GITHUB, BEHANCE) */}
+            <div className="w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={portfolioId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                  SKILL PORTOFOLIO LINK (e.g GITHUB, BEHANCE)*
+                </label>
+              </div>
+
+              <div
+                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                  clientErrors.portfolioUrl ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
+                }`}
+              >
+                <input
+                  id={portfolioId}
+                  name="portfolioUrl"
+                  type="text"
+                  value={portfolioUrl}
+                  onChange={(e) => {
+                    setPortfolioUrl(e.target.value);
+                    if (clientErrors.portfolioUrl) {
+                      setClientErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.portfolioUrl;
+                        return n;
+                      });
+                    }
+                  }}
+                  placeholder="Enter Skill"
+                  className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
+                  disabled={isPending}
+                />
+              </div>
+              {clientErrors.portfolioUrl && (
+                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{clientErrors.portfolioUrl}</span>
+                </p>
+              )}
+            </div>
+
+            {/* FIELD 7: SKILL DESCRIPTION (Must filled, Max 20 Words!) */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={skillsId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  SKILL DESCRIPTION (Please tell your confidence skill based on your experience in 20 Words)
+                  SKILL DESCRIPTION (Please tell your confidence skill based on your experience in 20 Words)*
                 </label>
               </div>
 
@@ -652,7 +757,7 @@ function RegistrationFormContent() {
                       });
                     }
                   }}
-                  placeholder="Enter Skill Description"
+                  placeholder="Input Link"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                   disabled={isPending}
                 />
@@ -678,13 +783,13 @@ function RegistrationFormContent() {
             </div>
 
             {/* ================================================================= */}
-            {/* FIELD 6: CURRICULUM VITAE (PDF) - FULL WIDTH DROPZONE             */}
+            {/* FIELD 8: CURRICULUM VITAE (PDF) - FULL WIDTH DROPZONE             */}
             {/* ================================================================= */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                 <label className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  CURRICULUM VITAE (PDF)
+                  CURRICULUM VITAE (PDF)*
                 </label>
               </div>
 
@@ -738,6 +843,9 @@ function RegistrationFormContent() {
                 <p className="text-xs md:text-sm font-bold tracking-widest text-neutral-600 uppercase text-center">
                   UPLOAD YOUR FILE HERE
                 </p>
+                <p className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase text-center mt-1">
+                  MAX 5 MB
+                </p>
 
                 {/* Selected File Card Preview */}
                 {selectedFile && (
@@ -774,7 +882,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* ================================================================= */}
-            {/* FIELD 7: CERTIFICATE (PDF) - OPTIONAL DROPZONE                    */}
+            {/* FIELD 9: CERTIFICATE (PDF) - OPTIONAL DROPZONE                    */}
             {/* ================================================================= */}
             <div className="w-full">
               <div className="flex items-center justify-between mb-2">
@@ -837,6 +945,9 @@ function RegistrationFormContent() {
                 <p className="text-xs md:text-sm font-bold tracking-widest text-neutral-600 uppercase text-center">
                   UPLOAD YOUR FILE HERE
                 </p>
+                <p className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase text-center mt-1">
+                  MAX 5 MB
+                </p>
 
                 {/* Selected File Card Preview */}
                 {certificateFile && (
@@ -879,7 +990,7 @@ function RegistrationFormContent() {
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
                 <label className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  REGISTRATION WAY
+                  REGISTRATION WAY* 
                 </label>
               </div>
 

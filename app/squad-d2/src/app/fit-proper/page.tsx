@@ -27,6 +27,10 @@ import {
   Lock,
   AlertCircle,
   CheckCircle2,
+  Video,
+  Globe,
+  ExternalLink,
+  FolderGit2,
 } from 'lucide-react';
 import { CandidateWithJob, FitProperRequirement, RequirementStatus } from '../../types/candidate';
 import { createClient } from '@/utils/supabase/client';
@@ -45,6 +49,17 @@ function FitProperContent() {
   // Candidate Data State
   const [candidate, setCandidate] = useState<CandidateWithJob | null>(null);
   const [isLoadingCandidate, setIsLoadingCandidate] = useState(true);
+
+  // Candidate Name, Role & Initials
+  const candidateName = candidate?.full_name || 'Rusdi';
+  const candidateRole = candidate?.job_title || candidate?.d2_job_posts?.title || 'Backend Engineer';
+  const candidateInitials = useMemo(() => {
+    const parts = candidateName.trim().split(' ').filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return candidateName.slice(0, 2).toUpperCase() || 'BS';
+  }, [candidateName]);
 
   // Active Tab State: default to 'calculation' as shown in Image 1
   const [activeTab, setActiveTab] = useState<ActiveTab>('calculation');
@@ -223,6 +238,9 @@ function FitProperContent() {
           phone_number: '+62 812-3456-7890',
           registration_way: 'recommendation-based',
           cv_file_path: 'resumes/rusdi-cv.pdf',
+          social_media: '@rusdi.dev',
+          portfolio_url: 'https://github.com/rusdi-dev',
+          skills: 'Spesialis Backend dengan keahlian Node.js, optimasi query PostgreSQL, arsitektur microservices, dan perancangan REST API berskala besar.',
           stage: 'assessment',
           status: 'assessment',
           application_count: 3,
@@ -328,6 +346,190 @@ function FitProperContent() {
   // Algoritma Pengurangan (Target Syarat - Pelamar Penuhi = Missing Requirements)
   const missingRequirements = Math.max(0, totalActiveCount - fulfilledCount);
 
+  // Mark candidate as calculated in Fit & Proper in localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && candidateId && candidateId !== 'default-candidate' && requirements.length > 0) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('andima_fit_proper_calculated') || '[]');
+        if (!stored.includes(candidateId)) {
+          stored.push(candidateId);
+          localStorage.setItem('andima_fit_proper_calculated', JSON.stringify(stored));
+        }
+      } catch {}
+    }
+  }, [candidateId, requirements]);
+
+  // Derived formatting for General Information matching Image 1 & 2
+  const formattedAppDate = useMemo(() => {
+    const rawDate = candidate?.applied_at || candidate?.created_at;
+    if (!rawDate) return '19 Oktober 2026';
+    try {
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return '19 Oktober 2026';
+      return d.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return '19 Oktober 2026';
+    }
+  }, [candidate?.applied_at, candidate?.created_at]);
+
+  const isInterviewStage = useMemo(() => {
+    const st = (candidate?.status || candidate?.stage || '').toLowerCase();
+    return st.includes('interview');
+  }, [candidate?.status, candidate?.stage]);
+
+  const hasCertificate = useMemo(() => {
+    const path = candidate?.certificate_file_path;
+    return Boolean(
+      path &&
+      typeof path === 'string' &&
+      path.trim() !== '' &&
+      path.toLowerCase() !== 'null' &&
+      path.toLowerCase() !== 'undefined'
+    );
+  }, [candidate?.certificate_file_path]);
+
+  const interviewWay = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const schedules = JSON.parse(localStorage.getItem('andima_interview_schedules') || '{}');
+        if (schedules[candidateId]?.scheduleType) {
+          return schedules[candidateId].scheduleType === 'online' ? 'Online' : 'Onsite';
+        }
+      } catch {}
+    }
+    const rReason = candidate?.rejection_reason || '';
+    if (rReason.toLowerCase().includes('onsite') || rReason.toLowerCase().includes('pool')) {
+      return 'Onsite';
+    }
+    if (rReason.toLowerCase().includes('online') || rReason.toLowerCase().includes('meet.google.com') || rReason.toLowerCase().includes('zoom')) {
+      return 'Online';
+    }
+    return 'Onsite';
+  }, [candidateId, candidate?.rejection_reason]);
+
+  const displayJobApplied = useMemo(() => {
+    return candidate?.job_title || candidateRole || 'Backend Engineer';
+  }, [candidate?.job_title, candidateRole]);
+
+  const displayRegistrationWay = useMemo(() => {
+    const raw = candidate?.registration_way || 'Scouting/Interview Based';
+    if (raw.toLowerCase().includes('scout') && raw.toLowerCase().includes('interview')) {
+      return 'Scouting/Interview Based';
+    }
+    if (raw.toLowerCase() === 'scouting-based' || raw.toLowerCase() === 'scouting') {
+      return 'Scouting/Interview Based';
+    }
+    if (raw.toLowerCase().includes('rec')) return 'Recommendation';
+    return raw;
+  }, [candidate?.registration_way]);
+
+  const displayStage = useMemo(() => {
+    const st = candidate?.status || candidate?.stage || 'Screening';
+    if (st.toLowerCase() === 'applied' || st.toLowerCase() === 'candidate') return 'APPLIED';
+    if (st.toLowerCase() === 'assessment' || st.toLowerCase() === 'screening') return 'SCREENING';
+    if (st.toLowerCase() === 'interview' || st.toLowerCase() === 'interviewed') return 'INTERVIEW';
+    if (st.toLowerCase() === 'offered' || st.toLowerCase() === 'offering') return 'OFFERED';
+    if (st.toLowerCase() === 'hired') return 'HIRED';
+    if (st.toLowerCase() === 'rejected') return 'REJECTED';
+    return st.toUpperCase();
+  }, [candidate?.status, candidate?.stage]);
+
+  const candidateSocialMedia = useMemo(() => {
+    if (candidate?.social_media) return candidate.social_media;
+    const rReason = candidate?.rejection_reason || '';
+    if (rReason.includes('SocialMedia: ')) {
+      return rReason.split('SocialMedia: ')[1]?.split(' | ')[0]?.trim() || '@rusdi.dev';
+    }
+    return '@rusdi.dev';
+  }, [candidate?.social_media, candidate?.rejection_reason]);
+
+  const candidatePortfolio = useMemo(() => {
+    if (candidate?.portfolio_url) return candidate.portfolio_url;
+    const rReason = candidate?.rejection_reason || '';
+    if (rReason.includes('Portfolio: ')) {
+      return rReason.split('Portfolio: ')[1]?.split(' | ')[0]?.trim() || 'https://github.com/rusdi-dev';
+    }
+    return 'https://github.com/rusdi-dev';
+  }, [candidate?.portfolio_url, candidate?.rejection_reason]);
+
+  const portfolioHref = useMemo(() => {
+    const raw = candidatePortfolio || 'https://github.com/rusdi-dev';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return `https://${raw}`;
+  }, [candidatePortfolio]);
+
+  const candidateSkillDescription = useMemo(() => {
+    if (candidate?.skills) return candidate.skills;
+    const rReason = candidate?.rejection_reason || '';
+    if (rReason.includes('Skill: ')) {
+      return (
+        rReason.split('Skill: ')[1]?.split(' | ')[0]?.trim() ||
+        'Spesialis Backend dengan keahlian Node.js, optimasi query PostgreSQL, arsitektur microservices, dan perancangan REST API berskala besar.'
+      );
+    }
+    return 'Spesialis Backend dengan keahlian Node.js, optimasi query PostgreSQL, arsitektur microservices, dan perancangan REST API berskala besar.';
+  }, [candidate?.skills, candidate?.rejection_reason]);
+
+  // Combined Rejected History (All previous applications + current rejection if rejected)
+  const allRejectedHistory = useMemo(() => {
+    let list: any[] = [];
+    if (repeatInfo?.history && repeatInfo.history.length > 0) {
+      list = [...repeatInfo.history];
+    }
+
+    if (candidate?.status === 'rejected' || candidate?.stage === 'rejected') {
+      const currentReason = candidate.rejection_reason || 'Kandidat belum memenuhi kualifikasi standar posisi.';
+      const alreadyIncluded = list.some(
+        (item) => item.candidate_id === candidate.id || (item.rejection_reason && item.rejection_reason === currentReason)
+      );
+      if (!alreadyIncluded) {
+        list.unshift({
+          id: `hist-curr-${candidate.id}`,
+          candidate_id: candidate.id,
+          email: candidate.email,
+          full_name: candidate.full_name,
+          job_title: candidateRole,
+          status: 'REJECTED',
+          rejection_reason: currentReason,
+          application_date: candidate.updated_at || candidate.created_at || new Date().toISOString(),
+          is_read_only: true,
+        });
+      }
+    }
+
+    if (list.length === 0) {
+      const lower = (candidateName || '').toLowerCase();
+      if (lower.includes('rusdi')) {
+        list = [
+          {
+            job_title: 'Backend Engineer – June 2026',
+            status: 'REJECTED',
+            assessment_score: 72.5,
+            rejection_reason: 'Nilai technical coding test dan system design belum mencapai batas kelulusan.',
+          },
+          {
+            job_title: 'Backend Engineer – June 2025',
+            status: 'REJECTED',
+            assessment_score: 68.0,
+            rejection_reason: 'Kompetensi microservices dan pengalaman optimasi database belum mencukupi.',
+          },
+          {
+            job_title: 'Backend Engineer – June 2024',
+            status: 'REJECTED',
+            assessment_score: 60.0,
+            rejection_reason: 'Kualifikasi pengalaman kerja minimal belum terpenuhi saat pembukaan lowongan.',
+          },
+        ];
+      }
+    }
+
+    return list;
+  }, [repeatInfo?.history, candidate?.status, candidate?.stage, candidate?.rejection_reason, candidate?.id, candidate?.email, candidate?.full_name, candidateRole, candidateName]);
+
   // Decision Making Handler (FR-03.3 & FR-03.4)
   const handleExecuteDecision = async (decision: 'Lolos Fit & Proper' | 'Tolak', reason?: string) => {
     setIsDecisionPending(true);
@@ -346,9 +548,47 @@ function FitProperContent() {
       if (json.success) {
         setDecisionState(decision);
         showFeedback(`Keputusan "${decision}" berhasil dieksekusi ke database.`);
-        setCandidate((prev) => (prev ? { ...prev, status: json.status as any } : prev));
+        setCandidate((prev) => (prev ? { 
+          ...prev, 
+          status: json.status as any,
+          rejection_reason: decision === 'Tolak' ? (reason || 'Tidak memenuhi kualifikasi standar posisi (Gagal Fit & Proper)') : prev.rejection_reason,
+        } : prev));
         setIsRejectModalOpen(false);
         setRejectReason('');
+
+        if (decision === 'Tolak') {
+          const newRejectionItem = {
+            id: `hist-new-${Date.now()}`,
+            candidate_id: candidateId,
+            email: candidate?.email || '',
+            full_name: candidate?.full_name || candidateName,
+            job_title: candidateRole,
+            status: 'REJECTED',
+            rejection_reason: reason || 'Tidak memenuhi kualifikasi standar posisi (Gagal Fit & Proper)',
+            application_date: new Date().toISOString(),
+            is_read_only: true,
+          };
+          setRepeatInfo((prev) => ({
+            isRepeat: true,
+            count: (prev?.count || 1) + 1,
+            label: `Pelamar ke-${(prev?.count || 1) + 1} Kali`,
+            history: [newRejectionItem, ...(prev?.history || [])],
+          }));
+
+          fetch(`/api/squad-d2/repeat-applicants?candidateId=${encodeURIComponent(candidateId)}`)
+            .then((r) => r.json())
+            .then((rJson) => {
+              if (rJson.success && Array.isArray(rJson.history)) {
+                setRepeatInfo({
+                  isRepeat: rJson.isRepeatApplicant,
+                  count: rJson.applicationCount,
+                  label: rJson.repeatLabel,
+                  history: rJson.history,
+                });
+              }
+            })
+            .catch(() => {});
+        }
       } else {
         showFeedback(json.message || 'Gagal menyimpan keputusan', 'error');
       }
@@ -621,17 +861,6 @@ function FitProperContent() {
       console.error('Failed to save threshold on server:', err);
     }
   };
-
-  // Candidate Name & Initials
-  const candidateName = candidate?.full_name || 'Rusdi';
-  const candidateRole = candidate?.job_title || candidate?.d2_job_posts?.title || 'Backend Engineer';
-  const candidateInitials = useMemo(() => {
-    const parts = candidateName.trim().split(' ').filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return candidateName.slice(0, 2).toUpperCase() || 'BS';
-  }, [candidateName]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800 font-sans antialiased w-full">
@@ -1034,7 +1263,7 @@ function FitProperContent() {
                 </div>
 
                 {/* Rows matching Image 5 & FR-D2-005 */}
-                {repeatInfo && !repeatInfo.isRepeat && (!repeatInfo.history || repeatInfo.history.length === 0) ? (
+                {allRejectedHistory.length === 0 ? (
                   /* FR-D2-005 3.a.ii: Pesan standar jika tidak ada riwayat lamaran */
                   <div className="p-8 text-center text-xs text-slate-500">
                     <p className="font-semibold text-slate-700">Tidak ada riwayat lamaran sebelumnya.</p>
@@ -1044,36 +1273,14 @@ function FitProperContent() {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
-                    {(repeatInfo?.history && repeatInfo.history.length > 0
-                      ? repeatInfo.history
-                      : [
-                          {
-                            job_title: 'Backend Engineer – June 2026',
-                            status: 'REJECTED',
-                            assessment_score: 72.5,
-                            rejection_reason: 'Nilai technical coding test dan system design belum mencapai batas kelulusan.',
-                          },
-                          {
-                            job_title: 'Backend Engineer – June 2025',
-                            status: 'REJECTED',
-                            assessment_score: 68.0,
-                            rejection_reason: 'Kompetensi microservices dan pengalaman optimasi database belum mencukupi.',
-                          },
-                          {
-                            job_title: 'Backend Engineer – June 2024',
-                            status: 'REJECTED',
-                            assessment_score: 60.0,
-                            rejection_reason: 'Kualifikasi pengalaman kerja minimal belum terpenuhi saat pembukaan lowongan.',
-                          },
-                        ]
-                    ).map((row: any, idx: number) => (
+                    {allRejectedHistory.map((row: any, idx: number) => (
                       <div
-                        key={`reject-${idx}`}
+                        key={`reject-${row.id || idx}`}
                         className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
                       >
                         <div className="min-w-0">
                           <span className="text-xs sm:text-sm font-semibold text-slate-700 block">
-                            {row.job_title || row.position}
+                            {row.job_title || row.position || candidateRole}
                           </span>
                           {/* FR-05.4 & FR-05.5: Assessment score & Rejection note */}
                           <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -1112,100 +1319,228 @@ function FitProperContent() {
           {/* TAB CONTENT 3: GENERAL INFORMATION                                        */}
           {/* ========================================================================= */}
           {activeTab === 'general' && (
-            <div className="flex-1 flex flex-col">
-              <div className="mb-6 text-center">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-wider uppercase">
-                  GENERAL INFORMATION
-                </h3>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Full Name */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <User className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Nama Lengkap</p>
-                      <p className="text-sm font-bold text-slate-900 mt-0.5">{candidate?.full_name}</p>
-                    </div>
+            <div className="flex-1 bg-white rounded-3xl p-6 sm:p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+              {/* Form Grid 2 Kolom matching media_1794844951978_53119498.png */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-7 gap-x-10 lg:gap-x-16 max-w-4xl mx-auto w-full">
+                {/* Kolom Kiri 1: NAMA LENGKAP */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-blue-600" />
                   </div>
-
-                  {/* Email */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <Mail className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Alamat Email</p>
-                      <p className="text-sm font-bold text-slate-900 mt-0.5">{candidate?.email}</p>
-                    </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      NAMA LENGKAP
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                      {candidate?.full_name || candidateName}
+                    </p>
                   </div>
+                </div>
 
-                  {/* Phone */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <Phone className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Nomor Telepon</p>
-                      <p className="text-sm font-bold text-slate-900 mt-0.5">{candidate?.phone_number || '-'}</p>
-                    </div>
+                {/* Kolom Kanan 1: ALAMAT EMAIL */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Mail className="w-5 h-5 text-blue-600" />
                   </div>
-
-                  {/* Position */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <Briefcase className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Posisi Dilamar</p>
-                      <p className="text-sm font-bold text-slate-900 mt-0.5">{candidateRole}</p>
-                    </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      ALAMAT EMAIL
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                      {candidate?.email || '-'}
+                    </p>
                   </div>
+                </div>
 
-                  {/* Registration Way */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <Layers className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Jalur Pendaftaran</p>
-                      <p className="text-sm font-bold text-slate-900 mt-0.5 capitalize">
-                        {candidate?.registration_way.replace(/-/g, ' ')}
-                      </p>
-                    </div>
+                {/* Kolom Kiri 2: NOMOR TELEPON */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Phone className="w-5 h-5 text-blue-600" />
                   </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      NOMOR TELEPON
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                      {candidate?.phone_number || '-'}
+                    </p>
+                  </div>
+                </div>
 
-                  {/* Stage / Status */}
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <Calendar className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Tahapan Rekrutmen</p>
-                      <span className="inline-block mt-1 px-3 py-0.5 rounded-full text-xs font-bold uppercase bg-blue-100 text-blue-800">
-                        {candidate?.status || 'Screening'}
+                {/* Kolom Kanan 2: POSISI DILAMAR */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Briefcase className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      POSISI DILAMAR
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                      {displayJobApplied}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kolom Kiri 3: JALUR PENDAFTARAN */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Layers className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      JALUR PENDAFTARAN
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                      {displayRegistrationWay}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kolom Kanan 3: TAHAPAN REKRUTMEN */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      TAHAPAN REKRUTMEN
+                    </p>
+                    <div className="mt-1">
+                      <span className="inline-block px-3.5 py-0.5 rounded-full text-xs font-bold uppercase bg-blue-100 text-blue-800 tracking-wider">
+                        {displayStage}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* CV File Download */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    <span>Curriculum Vitae (PDF Document)</span>
+                {/* Kolom Kiri 4: SOCIAL MEDIA USERNAME */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Globe className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      SOCIAL MEDIA USERNAME
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5 truncate">
+                      {candidateSocialMedia}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kolom Kanan 4: SKILL PORTOFOLIO (Clickable Link Open New Tab) */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <FolderGit2 className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      SKILL PORTOFOLIO
+                    </p>
+                    <div className="mt-0.5">
+                      <a
+                        href={portfolioHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs sm:text-sm font-bold text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1.5 transition-colors"
+                        title="Buka Portofolio di Tab Baru"
+                      >
+                        <span className="truncate max-w-[200px] sm:max-w-xs">{candidatePortfolio}</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Baris Span 2 Kolom: SKILL DESCRIPTION */}
+                <div className="col-span-1 md:col-span-2 flex items-start gap-3.5 pt-1">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      SKILL DESCRIPTION
+                    </p>
+                    <p className="text-xs sm:text-sm font-medium text-slate-700 mt-1 leading-relaxed">
+                      {candidateSkillDescription}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Baris Berkas Dokumen (Curriculum Vitae & Certificate) */}
+              <div className="max-w-4xl mx-auto w-full mt-10 pt-6 border-t border-slate-100 space-y-4">
+                {/* CV Row matching Image */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold text-slate-700">
+                      Curriculum Vitae (PDF Document)
+                    </span>
                   </div>
                   <a
-                    href={`/api/squad-d2/candidates`}
+                    href={`/api/squad-d2/download?type=cv&candidateId=${candidate?.id || candidateId}`}
                     download
-                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors"
+                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors inline-flex items-center justify-center cursor-pointer shrink-0"
                   >
                     Unduh Dokumen CV
                   </a>
                 </div>
+
+                {/* Certificate Row - HANYA tampil jika pelamar melampirkan certificate */}
+                {hasCertificate && (
+                  <div className="flex items-center justify-between gap-4 pt-3 border-t border-slate-100/80">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                      <span className="text-xs sm:text-sm font-semibold text-slate-700">
+                        Certificate (PDF Document)
+                      </span>
+                    </div>
+                    <a
+                      href={`/api/squad-d2/download?type=certificate&candidateId=${candidate?.id || candidateId}`}
+                      download
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors inline-flex items-center justify-center cursor-pointer shrink-0"
+                    >
+                      Unduh Dokumen Sertifikat
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Section: Application Date & Interview Info */}
+              <div className="max-w-4xl mx-auto w-full">
+                {isInterviewStage ? (
+                  /* Ketika sudah interview: Sebaris (justify-between) */
+                  <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    {/* Sisi Kiri: Informasi Metode Wawancara */}
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <Video className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                          METODE WAWANCARA
+                        </p>
+                        <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                          {interviewWay}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Sisi Kanan: Application Date */}
+                    <div className="inline-flex items-center px-6 py-2.5 rounded-xl border border-slate-200/90 bg-slate-50/50 text-slate-500 font-bold text-xs sm:text-sm shadow-2xs shrink-0 self-center sm:self-auto">
+                      Application Date: {formattedAppDate}
+                    </div>
+                  </div>
+                ) : (
+                  /* Ketika belum interview: Posisi Center */
+                  <div className="mt-8 pt-6 border-t border-slate-100 flex justify-center items-center">
+                    <div className="inline-flex items-center px-6 py-2.5 rounded-xl border border-slate-200/90 bg-slate-50/50 text-slate-500 font-bold text-xs sm:text-sm shadow-2xs">
+                      Application Date: {formattedAppDate}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

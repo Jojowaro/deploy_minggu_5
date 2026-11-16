@@ -67,18 +67,33 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   }, [candidate.applied_at, candidate.created_at]);
 
   // Qualification logic (Fit & Proper Preview per Section 2 No 5 & Page 7 Checklist)
-  // Not Counted Yet: Khusus kandidat yang belum dievaluasi kualifikasinya terhadap syarat posisi (skills_tagged = false)
-  // QUALIFIED: Ditampilkan setelah kualifikasi dinilai
-  const isSkillsTagged = candidate.skills_tagged === true || Boolean(candidate.skills && candidate.skills.trim().length > 0);
-  const isCandidateEvaluated =
-    candidate.status !== 'applied' &&
-    candidate.status !== 'candidate' ||
-    (candidate.stage && candidate.stage !== 'candidate' && candidate.stage !== 'screening') ||
-    candidate.full_name.toLowerCase().includes('indra') ||
-    isSkillsTagged;
+  // Fit & Proper Calculation Status (Tag "Not Counted Yet" appears when candidate has not been calculated, and disappears once skill/fit & proper is calculated)
+  const [isCalculatedLocally, setIsCalculatedLocally] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('andima_fit_proper_calculated') || '[]');
+        return Array.isArray(stored) && stored.includes(candidate.id);
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
 
-  const isQualified = isCandidateEvaluated && isSkillsTagged && candidate.status !== 'rejected';
-  const showNotCountedYet = !isSkillsTagged && candidate.status !== 'rejected';
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('andima_fit_proper_calculated') || '[]');
+        if (Array.isArray(stored) && stored.includes(candidate.id)) {
+          setIsCalculatedLocally(true);
+        }
+      } catch {}
+    }
+  }, [candidate.id]);
+
+  const isSkillsCalculated = candidate.skills_tagged === true || isCalculatedLocally;
+  const showNotCountedYet = !isSkillsCalculated && candidate.status !== 'rejected';
+  const isQualified = isSkillsCalculated && candidate.status !== 'rejected';
 
   // History Badges (FR-D2-005)
   const isRepeater = (candidate.application_count || 1) > 1;

@@ -453,7 +453,9 @@ export default function KanbanPage() {
           return {
             ...c,
             status: targetStatus,
-            rejection_reason: targetStatus === 'rejected' && isNotEligible ? 'Not Eligible: Permanent rejection' : c.rejection_reason,
+            rejection_reason: targetStatus === 'rejected'
+              ? (reason || (isNotEligible ? 'Not Eligible: Permanent rejection' : 'Kandidat belum memenuhi kualifikasi standar.'))
+              : c.rejection_reason,
             rejected_at_stage: finalRejectedAtStage || c.rejected_at_stage,
             employee_tier: employeeTier || c.employee_tier,
             employee_id: employeeId || c.employee_id,
@@ -539,6 +541,18 @@ export default function KanbanPage() {
     }
 
     console.info(`[TR-D2-002 TR-06] Database update completed in ${result.latencyMs}ms`);
+
+    if (targetStatus === 'rejected') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('andima_candidate_rejections') || '{}');
+        stored[candidateId] = {
+          reason: reason || 'Kandidat belum memenuhi kualifikasi standar.',
+          date: new Date().toISOString(),
+          jobTitle: candidate.job_title || 'Backend Engineer',
+        };
+        localStorage.setItem('andima_candidate_rejections', JSON.stringify(stored));
+      } catch {}
+    }
 
     // Refresh Audit logs silently in background
     getAuditLogsAction().then((logs) => setAuditLogs(logs));

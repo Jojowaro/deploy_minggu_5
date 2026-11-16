@@ -437,12 +437,14 @@ export async function insertCandidate(
       application_count: payload.application_count || 1,
     };
 
-    // Preserve skills and certificate info in metadata
+    // Preserve skills, certificate, social media, and portfolio info in metadata
     let metadataReason = payload.rejection_reason || '';
-    if (payload.skills || payload.certificate_file_path) {
-      const parts: string[] = [];
-      if (payload.skills) parts.push(`Skill: ${payload.skills}`);
-      if (payload.certificate_file_path) parts.push(`Certificate: ${payload.certificate_file_path}`);
+    const parts: string[] = [];
+    if (payload.skills) parts.push(`Skill: ${payload.skills}`);
+    if (payload.certificate_file_path) parts.push(`Certificate: ${payload.certificate_file_path}`);
+    if (payload.social_media) parts.push(`SocialMedia: ${payload.social_media}`);
+    if (payload.portfolio_url) parts.push(`Portfolio: ${payload.portfolio_url}`);
+    if (parts.length > 0) {
       const extraMeta = parts.join(' | ');
       metadataReason = metadataReason ? `${metadataReason} | ${extraMeta}` : extraMeta;
     }
@@ -481,6 +483,8 @@ export async function insertCandidate(
           ...insertedRows[0],
           skills: payload.skills || null,
           certificate_file_path: payload.certificate_file_path || null,
+          social_media: payload.social_media || null,
+          portfolio_url: payload.portfolio_url || null,
         }
       : null;
 
@@ -528,7 +532,17 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
       cache: 'no-store',
     });
 
-    const [candRes, posRes] = await Promise.all([candPromise, posPromise]);
+    // 3. Fetch evaluated candidate IDs from d2_fit_proper_evaluations
+    const evalUrl = `${baseUrl}/rest/v1/d2_fit_proper_evaluations?select=candidate_id`;
+    const evalPromise = fetch(evalUrl, {
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+      cache: 'no-store',
+    }).catch(() => null);
+
+    const [candRes, posRes, evalRes] = await Promise.all([candPromise, posPromise, evalPromise]);
 
     const elapsed = Date.now() - startTime;
     if (elapsed > 200) {
@@ -549,6 +563,16 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
       if (Array.isArray(posRows)) {
         posRows.forEach((p) => {
           posMap.set(p.id, { nama_posisi: p.nama_posisi, departemen: p.departemen });
+        });
+      }
+    }
+
+    const evaluatedSet = new Set<string>();
+    if (evalRes && evalRes.ok) {
+      const evalRows: any[] = await evalRes.json().catch(() => []);
+      if (Array.isArray(evalRows)) {
+        evalRows.forEach((r) => {
+          if (r.candidate_id) evaluatedSet.add(r.candidate_id);
         });
       }
     }
@@ -580,9 +604,38 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
           nikCounts.get(nk) || 1
         );
 
+        // Extract skills, certificate, social_media, and portfolio_url from metadata if not directly in column
+        let extractedSkills = row.skills || null;
+        let extractedCert = row.certificate_file_path || null;
+        let extractedSocial = row.social_media || null;
+        let extractedPortfolio = row.portfolio_url || null;
+
+        if (row.rejection_reason) {
+          const metaParts = String(row.rejection_reason).split(' | ');
+          for (const p of metaParts) {
+            if (p.startsWith('Skill: ') && !extractedSkills) {
+              extractedSkills = p.replace('Skill: ', '').trim();
+            }
+            if (p.startsWith('Certificate: ') && !extractedCert) {
+              extractedCert = p.replace('Certificate: ', '').trim();
+            }
+            if (p.startsWith('SocialMedia: ') && !extractedSocial) {
+              extractedSocial = p.replace('SocialMedia: ', '').trim();
+            }
+            if (p.startsWith('Portfolio: ') && !extractedPortfolio) {
+              extractedPortfolio = p.replace('Portfolio: ', '').trim();
+            }
+          }
+        }
+
         return {
           ...row,
+          skills: extractedSkills,
+          certificate_file_path: extractedCert,
+          social_media: extractedSocial,
+          portfolio_url: extractedPortfolio,
           job_title: title,
+          skills_tagged: evaluatedSet.has(row.id),
           d2_job_posts: {
             id: row.job_id,
             title: title,
@@ -648,17 +701,8 @@ export async function updateCandidateStatusAndLog(params: {
 
     if (reason !== undefined) {
       patchPayload.rejection_reason = reason;
-    }
-
-    if (newStatus === 'rejected') {
-      patchPayload.rejected_at_stage = rejectedAtStage || oldStatus;
-      patchPayload.final_status = 'rejected';
-    } else if (newStatus === 'hired') {
-      patchPayload.final_status = 'accepted';
-      patchPayload.stage = 'hired';
-      if (employeeTier) {
-        patchPayload.employee_tier = employeeTier;
-      }
+    } else if (newStatus === 'rejected') {
+      patchPayload.rejection_reason = 'Kandidat belum memenuhi kualifikasi standar.';
     }
 
     // Save interview schedule if interview details are specified (Section 3B)
@@ -733,10 +777,11 @@ export async function updateCandidateStatusAndLog(params: {
     }
 
     const updatedRows: any[] = await patchRes.json();
+    const resolvedTitle = jobTitle || updatedRows[0]?.d2_job_posts?.title || 'Backend Engineer';
     const updatedCandidate: CandidateWithJob = updatedRows[0]
       ? {
           ...updatedRows[0],
-          job_title: updatedRows[0].d2_job_posts?.title || 'Unknown Position',
+          job_title: resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer',
           application_count: typeof updatedRows[0].application_count === 'number' ? updatedRows[0].application_count : 1,
         }
       : (null as any);
@@ -750,17 +795,21 @@ export async function updateCandidateStatusAndLog(params: {
     }
 
     // 3. Record Rejection into d2_application_history if rejected (FR-D2-005 FR-05.5, TR-10 Read-Only)
-    if (newStatus === 'rejected' && updatedCandidate) {
+    if (newStatus === 'rejected') {
       try {
+        const histEmail = updatedCandidate?.email || '';
+        const histName = updatedCandidate?.full_name || '';
+        const histJobTitle = resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer';
+
         const historyPayload = {
           candidate_id: candidateId,
-          email: updatedCandidate.email,
-          nik: updatedCandidate.nik || null,
-          full_name: updatedCandidate.full_name,
-          job_id: updatedCandidate.job_id || null,
-          job_title: updatedCandidate.job_title || 'Unknown Position',
+          email: histEmail,
+          nik: updatedCandidate?.nik || null,
+          full_name: histName,
+          job_id: updatedCandidate?.job_id || null,
+          job_title: histJobTitle,
           application_date: nowIso,
-          application_round: updatedCandidate.application_count || 1,
+          application_round: updatedCandidate?.application_count || 1,
           status: 'rejected',
           assessment_score: null,
           assessment_notes: `Tahap seleksi: ${oldStatus} -> rejected`,

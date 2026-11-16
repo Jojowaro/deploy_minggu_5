@@ -117,13 +117,16 @@ export async function GET(request: NextRequest) {
     // 2. Query history records from Supabase d2_application_history
     let historyRecords: ApplicationHistoryItem[] = [];
 
-    if (resolvedEmail || resolvedNik) {
+    if (resolvedEmail || resolvedNik || candidateId) {
       try {
-        const queryFilter = resolvedEmail && resolvedNik
-          ? `or=(email.eq.${encodeURIComponent(resolvedEmail)},nik.eq.${encodeURIComponent(resolvedNik)})`
-          : resolvedEmail
-          ? `email=eq.${encodeURIComponent(resolvedEmail)}`
-          : `nik=eq.${encodeURIComponent(resolvedNik)}`;
+        const filters: string[] = [];
+        if (candidateId) filters.push(`candidate_id.eq.${encodeURIComponent(candidateId)}`);
+        if (resolvedEmail) filters.push(`email.eq.${encodeURIComponent(resolvedEmail)}`);
+        if (resolvedNik) filters.push(`nik.eq.${encodeURIComponent(resolvedNik)}`);
+
+        const queryFilter = filters.length > 1
+          ? `or=(${filters.join(',')})`
+          : filters[0];
 
         const histRes = await fetch(
           `${baseUrl}/rest/v1/d2_application_history?${queryFilter}&order=application_date.desc`,
@@ -168,9 +171,31 @@ export async function GET(request: NextRequest) {
       const lowerEmail = resolvedEmail.toLowerCase();
 
       if (lowerName.includes('rusdi') || lowerEmail.includes('rusdi')) {
-        historyRecords = MOCK_HISTORY_STORE['rusdi'];
+        historyRecords = [...MOCK_HISTORY_STORE['rusdi']];
       } else if (lowerName.includes('indra') || lowerEmail.includes('indra')) {
-        historyRecords = MOCK_HISTORY_STORE['indra'];
+        historyRecords = [...MOCK_HISTORY_STORE['indra']];
+      }
+    }
+
+    // Ensure candidate's current rejection is represented in history if candidate status is rejected
+    if (currentCandidate && (currentCandidate.status === 'rejected' || currentCandidate.stage === 'rejected')) {
+      const hasCurrent = historyRecords.some(
+        (r) => r.candidate_id === currentCandidate.id || (r.rejection_reason && r.rejection_reason === currentCandidate.rejection_reason)
+      );
+      if (!hasCurrent) {
+        historyRecords.unshift({
+          id: `hist-curr-${currentCandidate.id}`,
+          candidate_id: currentCandidate.id,
+          email: resolvedEmail,
+          nik: resolvedNik || null,
+          full_name: candidateName,
+          job_title: currentCandidate.job_title || 'Backend Engineer',
+          application_date: currentCandidate.updated_at || currentCandidate.created_at || new Date().toISOString(),
+          application_round: currentCandidate.application_count || 1,
+          status: 'REJECTED',
+          rejection_reason: currentCandidate.rejection_reason || 'Kandidat belum memenuhi kualifikasi standar.',
+          is_read_only: true,
+        });
       }
     }
 

@@ -96,6 +96,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let rawNik = '';
     let rawEmail = '';
     let rawPhoneNumber = '';
+    let rawSocialMedia = '';
+    let rawPortfolioUrl = '';
     let rawSkills = '';
     let rawRegistrationWay = '';
     let rawJobId = '';
@@ -110,6 +112,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       rawNik = (formData.get('nik') as string) || (formData.get('nikNumber') as string) || '';
       rawEmail = (formData.get('email') as string) || '';
       rawPhoneNumber = (formData.get('phoneNumber') as string) || (formData.get('phone') as string) || '';
+      rawSocialMedia = (formData.get('socialMedia') as string) || (formData.get('social_media') as string) || '';
+      rawPortfolioUrl = (formData.get('portfolioUrl') as string) || (formData.get('portfolio_url') as string) || (formData.get('portfolio') as string) || '';
       rawSkills = (formData.get('skills') as string) || (formData.get('skillDescription') as string) || '';
       rawRegistrationWay = (formData.get('registrationWay') as string) || '';
       rawJobId = (formData.get('jobId') as string) || '';
@@ -131,6 +135,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       rawNik = json.nik || json.nikNumber || '';
       rawEmail = json.email || '';
       rawPhoneNumber = json.phoneNumber || json.phone || '';
+      rawSocialMedia = json.socialMedia || json.social_media || '';
+      rawPortfolioUrl = json.portfolioUrl || json.portfolio_url || json.portfolio || '';
       rawSkills = json.skills || json.skillDescription || '';
       rawRegistrationWay = json.registrationWay || '';
       rawJobId = json.jobId || '';
@@ -173,9 +179,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       errors.email = ['Email maximum 255 characters!'];
     }
 
-    // NIK validation (16 digits numerical)
+    // NIK validation (Mandatory, exactly 16 digits numerical)
     const nik = rawNik ? sanitizeText(rawNik).replace(/\D/g, '') : null;
-    if (rawNik && (!nik || nik.length !== 16)) {
+    if (!rawNik || !rawNik.trim()) {
+      errors.nik = ['NIK must be filled!'];
+    } else if (!nik || nik.length !== 16) {
       errors.nik = ['NIK must be exactly 16 digits numerical.'];
     }
 
@@ -185,6 +193,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       errors.phoneNumber = ['Phone Number must be filled!'];
     } else if (!/^[0-9+\s-]{8,20}$/.test(phoneNumber)) {
       errors.phoneNumber = ['Invalid phone number format.'];
+    }
+
+    // Social Media Username validation (Mandatory!)
+    const socialMedia = sanitizeText(rawSocialMedia);
+    if (!socialMedia) {
+      errors.socialMedia = ['Social Media Username must be filled!'];
+    }
+
+    // Skill Portofolio Link validation (Mandatory!)
+    const portfolioUrl = sanitizeText(rawPortfolioUrl);
+    if (!portfolioUrl) {
+      errors.portfolioUrl = ['Skill Portofolio Link must be filled!'];
     }
 
     // Skill Description validation (Must filled, max 20 words!)
@@ -356,6 +376,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       nik: nik || null,
       email: email,
       phone_number: phoneNumber,
+      social_media: socialMedia,
+      portfolio_url: portfolioUrl,
       skills: skills,
       certificate_file_path: certStoragePath,
       registration_way: dbRegistrationWay,
@@ -390,7 +412,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           application_date: new Date().toISOString(),
           application_round: applicationCount,
           status: 'applied',
-          assessment_notes: `Skills: ${skills}${certStoragePath ? ` | Certificate: ${certStoragePath}` : ''}`,
+          assessment_notes: `Skills: ${skills}${certStoragePath ? ` | Certificate: ${certStoragePath}` : ''}${socialMedia ? ` | SocialMedia: ${socialMedia}` : ''}${portfolioUrl ? ` | Portfolio: ${portfolioUrl}` : ''}`,
           is_read_only: true,
           is_deleted: false,
         };

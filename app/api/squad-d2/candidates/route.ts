@@ -74,6 +74,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!/^[a-zA-Z\s]+$/.test(String(full_name).trim())) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid Format, must contain letters only' },
+        { status: 400 }
+      );
+    }
+
     const validJobId = await getActiveJobPostId(job_id);
     const validRegistrationWay = normalizeRegistrationWay(registration_way);
 

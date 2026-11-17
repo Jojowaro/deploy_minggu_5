@@ -107,6 +107,8 @@ function RegistrationFormContent() {
       errors.fullName = 'Full Name must be filled!';
     } else if (fullName.trim().length < 2) {
       errors.fullName = 'Full name must be at least 2 characters!';
+    } else if (!/^[a-zA-Z\s]+$/.test(fullName.trim())) {
+      errors.fullName = 'Invalid Format, must contain letters only';
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -715,7 +717,7 @@ function RegistrationFormContent() {
                       });
                     }
                   }}
-                  placeholder="Enter Skill"
+                  placeholder="Enter Link"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                   disabled={isPending}
                 />
@@ -757,7 +759,7 @@ function RegistrationFormContent() {
                       });
                     }
                   }}
-                  placeholder="Input Link"
+                  placeholder="Input Skill"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                   disabled={isPending}
                 />

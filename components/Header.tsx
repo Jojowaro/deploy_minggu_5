@@ -28,6 +28,8 @@ export const Header: React.FC<HeaderProps> = ({
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -190,12 +192,64 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="p-1">
                 <button
                   type="button"
-                  onClick={handleSignOut}
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    setIsLogoutModalOpen(true);
+                  }}
                   className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 text-rose-500" />
                   <span>Logout (Keluar)</span>
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Dialog Konfirmasi Logout */}
+          {isLogoutModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+              <div
+                className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-150 text-slate-800"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="header-logout-modal-title"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4 shadow-2xs">
+                  <LogOut className="w-6 h-6" />
+                </div>
+
+                <h3 id="header-logout-modal-title" className="text-base sm:text-lg font-bold text-slate-900">
+                  Konfirmasi Keluar
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1.5 mb-6">
+                  Apakah Anda yakin ingin keluar?
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  <button
+                    type="button"
+                    onClick={() => setIsLogoutModalOpen(false)}
+                    disabled={isSigningOut}
+                    className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsSigningOut(true);
+                      await handleSignOut();
+                    }}
+                    disabled={isSigningOut}
+                    className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {isSigningOut ? (
+                      <span>Keluar...</span>
+                    ) : (
+                      <span>Ya</span>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}

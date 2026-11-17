@@ -157,6 +157,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const [isD3Open, setIsD3Open] = useState(false);
   const [isD1Open, setIsD1Open] = useState<boolean | null>(null);
   const [isD2Open, setIsD2Open] = useState<boolean | null>(null);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const [loadedAccount, setLoadedAccount] = useState<Account | null>(null);
   const hasSuppliedAccount = Boolean(userName && userRole && userInitials);
@@ -333,7 +334,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
 
           <button
             type="button"
-            onClick={() => void handleSignOut()}
+            onClick={() => setIsLogoutModalOpen(true)}
             disabled={isSigningOut || isInternalSigningOut}
             className="w-full flex items-center justify-center gap-3 rounded-full border-2 border-[#D9364F] py-2 px-4 text-xs font-bold text-white hover:bg-[#D9364F]/10 transition-colors cursor-pointer"
             aria-label="Logout"
@@ -343,6 +344,54 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
           </button>
         </div>
       </aside>
+
+      {/* Modal Dialog Konfirmasi Logout */}
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-150 text-slate-800"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-modal-title"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4 shadow-2xs">
+              <LogOut className="w-6 h-6" />
+            </div>
+
+            <h3 id="logout-modal-title" className="text-base sm:text-lg font-bold text-slate-900">
+              Konfirmasi Keluar
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 mb-6">
+              Apakah Anda yakin ingin keluar?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(false)}
+                disabled={isSigningOut || isInternalSigningOut}
+                className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await handleSignOut();
+                }}
+                disabled={isSigningOut || isInternalSigningOut}
+                className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isSigningOut || isInternalSigningOut ? (
+                  <span>Keluar...</span>
+                ) : (
+                  <span>Ya</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <button
         type="button"

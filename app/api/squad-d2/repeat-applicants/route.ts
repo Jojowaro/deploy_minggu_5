@@ -109,27 +109,98 @@ export async function GET(request: NextRequest) {
           currentCandidate = rows[0];
           resolvedEmail = currentCandidate.email?.trim().toLowerCase() || resolvedEmail;
           resolvedNik = currentCandidate.nik?.trim() || resolvedNik;
-          candidateName = currentCandidate.full_name || '';
+          candidateName = currentCandidate.full_name?.trim() || '';
         }
       }
     }
 
-    // 2. Query history records from Supabase d2_application_history
-    let historyRecords: ApplicationHistoryItem[] = [];
-
-    if (resolvedEmail || resolvedNik || candidateId) {
+    // 2. Fetch all candidate tickets for this applicant from d2_candidates
+    let applicantTickets: any[] = [];
+    if (resolvedEmail || resolvedNik || candidateName || candidateId) {
       try {
-        const filters: string[] = [];
-        if (candidateId) filters.push(`candidate_id.eq.${encodeURIComponent(candidateId)}`);
-        if (resolvedEmail) filters.push(`email.eq.${encodeURIComponent(resolvedEmail)}`);
-        if (resolvedNik) filters.push(`nik.eq.${encodeURIComponent(resolvedNik)}`);
+        const candFilters: string[] = [];
+        if (resolvedEmail) candFilters.push(`email.eq.${encodeURIComponent(resolvedEmail)}`);
+        if (resolvedNik) candFilters.push(`nik.eq.${encodeURIComponent(resolvedNik)}`);
+        if (candidateId) candFilters.push(`id.eq.${encodeURIComponent(candidateId)}`);
+        if (!resolvedEmail && !resolvedNik && candidateName) {
+          candFilters.push(`full_name.ilike.${encodeURIComponent(candidateName)}`);
+        }
 
-        const queryFilter = filters.length > 1
-          ? `or=(${filters.join(',')})`
-          : filters[0];
+        const candQuery = candFilters.length > 1 ? `or=(${candFilters.join(',')})` : candFilters[0];
+        const allCandRes = await fetch(
+          `${baseUrl}/rest/v1/d2_candidates?${candQuery}&select=*&order=created_at.desc`,
+          {
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'apikey': supabaseKey,
+            },
+            cache: 'no-store',
+          }
+        );
 
+        if (allCandRes.ok) {
+          const rows = await allCandRes.json();
+          if (Array.isArray(rows)) {
+            applicantTickets = rows.filter(
+              (r) => r.stage !== 'deleted' && r.status !== 'deleted' && !r.rejection_reason?.startsWith('__SOFT_DELETED__')
+            );
+            if (!currentCandidate && applicantTickets.length > 0) {
+              currentCandidate = applicantTickets.find((r) => r.id === candidateId) || applicantTickets[0];
+              resolvedEmail = currentCandidate.email?.trim().toLowerCase() || resolvedEmail;
+              resolvedNik = currentCandidate.nik?.trim() || resolvedNik;
+              candidateName = currentCandidate.full_name?.trim() || candidateName;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Squad D2 API] Warning fetching applicant tickets:', err);
+      }
+    }
+
+    // 3. Resolve Job Titles for all tickets
+    const jobTitleMap = new Map<string, string>();
+    const jobIds = Array.from(new Set(applicantTickets.map((t) => t.job_id).filter(Boolean)));
+    if (jobIds.length > 0) {
+      try {
+        const jobRes = await fetch(
+          `${baseUrl}/rest/v1/d2_job_posts?id=in.(${jobIds.map((id) => encodeURIComponent(id)).join(',')})&select=id,title`,
+          {
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'apikey': supabaseKey,
+            },
+            cache: 'no-store',
+          }
+        );
+        if (jobRes.ok) {
+          const jobs = await jobRes.json();
+          if (Array.isArray(jobs)) {
+            jobs.forEach((j: any) => jobTitleMap.set(j.id, j.title));
+          }
+        }
+      } catch {}
+    }
+
+    // 4. Query history records from Supabase d2_application_history
+    let dbHistoryRows: any[] = [];
+    if (resolvedEmail || resolvedNik || applicantTickets.length > 0 || candidateId) {
+      try {
+        const histFilters: string[] = [];
+        if (resolvedEmail) histFilters.push(`email.eq.${encodeURIComponent(resolvedEmail)}`);
+        if (resolvedNik) histFilters.push(`nik.eq.${encodeURIComponent(resolvedNik)}`);
+        applicantTickets.forEach((t) => {
+          if (t.id) histFilters.push(`candidate_id.eq.${encodeURIComponent(t.id)}`);
+        });
+        if (candidateId && !applicantTickets.some((t) => t.id === candidateId)) {
+          histFilters.push(`candidate_id.eq.${encodeURIComponent(candidateId)}`);
+        }
+        if (!resolvedEmail && !resolvedNik && candidateName) {
+          histFilters.push(`full_name.ilike.${encodeURIComponent(candidateName)}`);
+        }
+
+        const queryFilter = histFilters.length > 1 ? `or=(${histFilters.join(',')})` : histFilters[0];
         const histRes = await fetch(
-          `${baseUrl}/rest/v1/d2_application_history?${queryFilter}&order=application_date.desc`,
+          `${baseUrl}/rest/v1/d2_application_history?${queryFilter}&is_deleted=eq.false&order=application_date.desc`,
           {
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
@@ -141,31 +212,109 @@ export async function GET(request: NextRequest) {
 
         if (histRes.ok) {
           const rows = await histRes.json();
-          if (Array.isArray(rows) && rows.length > 0) {
-            historyRecords = rows.map((r: any) => ({
-              id: r.id,
-              candidate_id: r.candidate_id,
-              email: r.email,
-              nik: r.nik,
-              full_name: r.full_name,
-              job_id: r.job_id,
-              job_title: r.job_title,
-              application_date: r.application_date,
-              application_round: r.application_round || 1,
-              status: r.status,
-              assessment_score: r.assessment_score,
-              assessment_notes: r.assessment_notes,
-              rejection_reason: r.rejection_reason,
-              is_read_only: true, // TR-10 Read-Only
-            }));
+          if (Array.isArray(rows)) {
+            dbHistoryRows = rows;
           }
         }
-      } catch {
-        // Table not yet created or connection error, use fallback
+      } catch (err) {
+        console.warn('[Squad D2 API] Warning fetching history rows:', err);
       }
     }
 
-    // 3. Check Mock Store for Rusdi or Indra if table is empty
+    // 5. Merge and deduplicate all rejections
+    const historyMap = new Map<string, ApplicationHistoryItem>();
+
+    // First, populate from d2_application_history
+    dbHistoryRows.forEach((r: any) => {
+      const key = r.candidate_id || r.id;
+      historyMap.set(key, {
+        id: r.id,
+        candidate_id: r.candidate_id,
+        email: r.email || resolvedEmail,
+        nik: r.nik || resolvedNik || null,
+        full_name: r.full_name || candidateName,
+        job_id: r.job_id,
+        job_title: r.job_title || jobTitleMap.get(r.job_id) || 'Backend Engineer',
+        application_date: r.application_date || r.created_at || new Date().toISOString(),
+        application_round: r.application_round || 1,
+        status: (r.status || 'REJECTED').toUpperCase(),
+        assessment_score: r.assessment_score,
+        assessment_notes: r.assessment_notes,
+        rejection_reason: r.rejection_reason || 'Kandidat belum memenuhi kualifikasi standar posisi.',
+        is_read_only: true,
+      });
+    });
+
+    // Second, ensure all rejected tickets from d2_candidates are represented
+    const missingHistoryInserts: any[] = [];
+    applicantTickets.forEach((ticket) => {
+      const isRejected = ticket.status === 'rejected' || ticket.stage === 'rejected';
+      if (!isRejected) return;
+
+      const hasMatch = Array.from(historyMap.values()).some(
+        (h) => h.candidate_id === ticket.id || (h.rejection_reason && h.rejection_reason === ticket.rejection_reason && (h.job_id === ticket.job_id || h.job_title === jobTitleMap.get(ticket.job_id)))
+      );
+
+      if (!hasMatch) {
+        const itemJobTitle = jobTitleMap.get(ticket.job_id) || ticket.job_title || 'Backend Engineer';
+        const itemReason = ticket.rejection_reason || 'Kandidat belum memenuhi kualifikasi standar posisi.';
+        const itemDate = ticket.updated_at || ticket.created_at || new Date().toISOString();
+        const itemRound = ticket.application_count || 1;
+
+        const newItem: ApplicationHistoryItem = {
+          id: `hist-cand-${ticket.id}`,
+          candidate_id: ticket.id,
+          email: resolvedEmail || ticket.email,
+          nik: resolvedNik || ticket.nik || null,
+          full_name: candidateName || ticket.full_name,
+          job_id: ticket.job_id,
+          job_title: itemJobTitle,
+          application_date: itemDate,
+          application_round: itemRound,
+          status: 'REJECTED',
+          assessment_score: null,
+          assessment_notes: `Tiket status: rejected`,
+          rejection_reason: itemReason,
+          is_read_only: true,
+        };
+
+        historyMap.set(ticket.id, newItem);
+
+        // Queue insert with job_id null to prevent foreign key errors
+        missingHistoryInserts.push({
+          candidate_id: ticket.id,
+          email: resolvedEmail || ticket.email,
+          nik: resolvedNik || ticket.nik || null,
+          full_name: candidateName || ticket.full_name,
+          job_id: null,
+          job_title: itemJobTitle,
+          application_date: itemDate,
+          application_round: itemRound,
+          status: 'rejected',
+          rejection_reason: itemReason,
+          is_read_only: true,
+          is_deleted: false,
+        });
+      }
+    });
+
+    // Asynchronously backfill missing history records into Supabase d2_application_history
+    if (missingHistoryInserts.length > 0) {
+      fetch(`${baseUrl}/rest/v1/d2_application_history`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify(missingHistoryInserts),
+      }).catch((e) => console.warn('[Squad D2 API] Warning syncing missing history:', e));
+    }
+
+    let historyRecords = Array.from(historyMap.values());
+
+    // 6. Check Mock Store for Rusdi or Indra if table is empty
     if (historyRecords.length === 0) {
       const lowerName = candidateName.toLowerCase();
       const lowerEmail = resolvedEmail.toLowerCase();
@@ -177,40 +326,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Ensure candidate's current rejection is represented in history if candidate status is rejected
-    if (currentCandidate && (currentCandidate.status === 'rejected' || currentCandidate.stage === 'rejected')) {
-      const hasCurrent = historyRecords.some(
-        (r) => r.candidate_id === currentCandidate.id || (r.rejection_reason && r.rejection_reason === currentCandidate.rejection_reason)
-      );
-      if (!hasCurrent) {
-        historyRecords.unshift({
-          id: `hist-curr-${currentCandidate.id}`,
-          candidate_id: currentCandidate.id,
-          email: resolvedEmail,
-          nik: resolvedNik || null,
-          full_name: candidateName,
-          job_title: currentCandidate.job_title || 'Backend Engineer',
-          application_date: currentCandidate.updated_at || currentCandidate.created_at || new Date().toISOString(),
-          application_round: currentCandidate.application_count || 1,
-          status: 'REJECTED',
-          rejection_reason: currentCandidate.rejection_reason || 'Kandidat belum memenuhi kualifikasi standar.',
-          is_read_only: true,
-        });
+    // Sort history records newest to oldest
+    historyRecords.sort((a, b) => {
+      const dateA = new Date(a.application_date).getTime();
+      const dateB = new Date(b.application_date).getTime();
+      if (!isNaN(dateA) && !isNaN(dateB)) {
+        return dateB - dateA;
       }
-    }
+      return (b.application_round || 0) - (a.application_round || 0);
+    });
 
-    // 4. Calculate cumulative application count (FR-D2-005 3.b.ii)
-    // Formula: Total pendaftaran terdahulu + 1 lamaran aktif saat ini
-    const totalPreviousApplications = historyRecords.length;
-    const dbApplicationCount = currentCandidate?.application_count || 1;
-    const finalApplicationCount = Math.max(
-      dbApplicationCount,
-      totalPreviousApplications > 0 ? totalPreviousApplications + 1 : 1
+    // 7. Calculate real-time cumulative application count
+    const activeTickets = applicantTickets.filter((t) => t.status !== 'rejected' && t.stage !== 'rejected');
+    const maxCandidateRound = applicantTickets.reduce((m, t) => Math.max(m, t.application_count || 1), 1);
+    const maxHistRound = historyRecords.reduce((m, h) => Math.max(m, h.application_round || 1), 1);
+
+    const totalApplications = Math.max(
+      applicantTickets.length,
+      maxCandidateRound,
+      maxHistRound,
+      historyRecords.length + (activeTickets.length > 0 ? activeTickets.length : 0),
+      1
     );
 
-    const isRepeatApplicant = finalApplicationCount >= 2;
+    const isRepeatApplicant = totalApplications >= 2;
     // Label status sesuai FR-05.2: "Pelamar ke-3 Kali"
-    const repeatLabel = isRepeatApplicant ? `Pelamar ke-${finalApplicationCount} Kali` : null;
+    const repeatLabel = isRepeatApplicant ? `Pelamar ke-${totalApplications} Kali` : null;
 
     const lookupTimeMs = Math.round(performance.now() - startTime);
 
@@ -219,11 +360,11 @@ export async function GET(request: NextRequest) {
       email: resolvedEmail,
       nik: resolvedNik || null,
       isRepeatApplicant,
-      applicationCount: finalApplicationCount,
+      applicationCount: totalApplications,
       repeatLabel,
       // Pesan standar jika tidak ada riwayat (3.a.ii)
       message: isRepeatApplicant
-        ? `Ditemukan ${totalPreviousApplications} riwayat lamaran sebelumnya.`
+        ? `Ditemukan ${historyRecords.length} riwayat lamaran sebelumnya.`
         : 'Tidak ada riwayat lamaran sebelumnya',
       history: historyRecords,
       lookupTimeMs, // Target TR-08: < 100 ms

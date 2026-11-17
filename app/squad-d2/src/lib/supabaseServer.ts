@@ -542,7 +542,17 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
       cache: 'no-store',
     }).catch(() => null);
 
-    const [candRes, posRes, evalRes] = await Promise.all([candPromise, posPromise, evalPromise]);
+    // 4. Fetch application history to capture cumulative application rounds (FR-D2-005)
+    const histUrl = `${baseUrl}/rest/v1/d2_application_history?is_deleted=eq.false&select=candidate_id,email,nik,full_name,application_round`;
+    const histPromise = fetch(histUrl, {
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+      },
+      cache: 'no-store',
+    }).catch(() => null);
+
+    const [candRes, posRes, evalRes, histRes] = await Promise.all([candPromise, posPromise, evalPromise, histPromise]);
 
     const elapsed = Date.now() - startTime;
     if (elapsed > 200) {
@@ -577,31 +587,81 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
       }
     }
 
-    // Count parallel applications by NIK or Email (Section 3D)
+    // Filter active valid candidates (excluding soft-deleted)
+    const validCandRows = candRows.filter(
+      (row) => row.stage !== 'deleted' && row.status !== 'deleted' && !row.rejection_reason?.startsWith('__SOFT_DELETED__')
+    );
+
+    // Count parallel applications by NIK, Email, or Name (Section 3D) & Real-time repeat application round (FR-D2-005)
     const emailCounts = new Map<string, number>();
     const nikCounts = new Map<string, number>();
-    candRows.forEach((r) => {
-      if (r.email) {
-        const em = r.email.toLowerCase().trim();
+    const nameCounts = new Map<string, number>();
+    const maxRoundMap = new Map<string, number>();
+
+    validCandRows.forEach((r) => {
+      const em = (r.email || '').toLowerCase().trim();
+      const nk = (r.nik ? String(r.nik).trim() : '');
+      const nm = (r.full_name || '').toLowerCase().trim();
+      const round = typeof r.application_count === 'number' ? r.application_count : 1;
+
+      if (em) {
         emailCounts.set(em, (emailCounts.get(em) || 0) + 1);
+        maxRoundMap.set(`email:${em}`, Math.max(maxRoundMap.get(`email:${em}`) || 1, round));
       }
-      if (r.nik) {
-        const nk = String(r.nik).trim();
+      if (nk) {
         nikCounts.set(nk, (nikCounts.get(nk) || 0) + 1);
+        maxRoundMap.set(`nik:${nk}`, Math.max(maxRoundMap.get(`nik:${nk}`) || 1, round));
+      }
+      if (nm) {
+        nameCounts.set(nm, (nameCounts.get(nm) || 0) + 1);
+        maxRoundMap.set(`name:${nm}`, Math.max(maxRoundMap.get(`name:${nm}`) || 1, round));
       }
     });
 
-    return candRows
-      .filter((row) => row.stage !== 'deleted' && row.status !== 'deleted' && !row.rejection_reason?.startsWith('__SOFT_DELETED__'))
-      .map((row) => {
+    if (histRes && histRes.ok) {
+      const histRows = await histRes.json().catch(() => []);
+      if (Array.isArray(histRows)) {
+        histRows.forEach((h: any) => {
+          const em = (h.email || '').toLowerCase().trim();
+          const nk = (h.nik ? String(h.nik).trim() : '');
+          const nm = (h.full_name || '').toLowerCase().trim();
+          const round = typeof h.application_round === 'number' ? h.application_round : 1;
+
+          if (em) {
+            maxRoundMap.set(`email:${em}`, Math.max(maxRoundMap.get(`email:${em}`) || 1, round));
+          }
+          if (nk) {
+            maxRoundMap.set(`nik:${nk}`, Math.max(maxRoundMap.get(`nik:${nk}`) || 1, round));
+          }
+          if (nm) {
+            maxRoundMap.set(`name:${nm}`, Math.max(maxRoundMap.get(`name:${nm}`) || 1, round));
+          }
+        });
+      }
+    }
+
+    return validCandRows.map((row) => {
         const d1Pos = posMap.get(row.job_id);
         const title = d1Pos?.nama_posisi || row.d2_job_posts?.title || 'Unknown Position';
         const department = d1Pos?.departemen || 'Operations';
         const em = (row.email || '').toLowerCase().trim();
         const nk = (row.nik || '').trim();
+        const nm = (row.full_name || '').toLowerCase().trim();
+
         const parallelCount = Math.max(
           emailCounts.get(em) || 1,
-          nikCounts.get(nk) || 1
+          nikCounts.get(nk) || 1,
+          nameCounts.get(nm) || 1
+        );
+
+        // Real-time cumulative application count: highest recorded round or distinct application count
+        const rowRound = typeof row.application_count === 'number' ? row.application_count : 1;
+        const realTimeAppCount = Math.max(
+          rowRound,
+          parallelCount,
+          em ? (maxRoundMap.get(`email:${em}`) || 1) : 1,
+          nk ? (maxRoundMap.get(`nik:${nk}`) || 1) : 1,
+          nm ? (maxRoundMap.get(`name:${nm}`) || 1) : 1
         );
 
         // Extract skills, certificate, social_media, and portfolio_url from metadata if not directly in column
@@ -641,7 +701,7 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
             title: title,
             department: department,
           },
-          application_count: typeof row.application_count === 'number' ? row.application_count : 1,
+          application_count: realTimeAppCount,
           parallel_applications_count: parallelCount,
         };
       });
@@ -818,7 +878,7 @@ export async function updateCandidateStatusAndLog(params: {
           is_deleted: false,
         };
 
-        await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
+        const postHistRes = await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${supabaseKey}`,
@@ -827,6 +887,19 @@ export async function updateCandidateStatusAndLog(params: {
           },
           body: JSON.stringify(historyPayload),
         });
+
+        if (!postHistRes.ok) {
+          // If FK constraint on job_id fails, fallback with job_id: null
+          await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'apikey': supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ...historyPayload, job_id: null }),
+          });
+        }
       } catch (histErr) {
         console.warn('[Squad D2 Supabase] Warning: Failed to record rejection into d2_application_history:', histErr);
       }

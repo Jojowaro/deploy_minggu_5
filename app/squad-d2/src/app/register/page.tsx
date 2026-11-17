@@ -104,7 +104,7 @@ function RegistrationFormContent() {
     const errors: Record<string, string> = {};
 
     if (!fullName.trim()) {
-      errors.fullName = 'Full Name must be filled!';
+      errors.fullName = '/* Full Name */ must be filled!';
     } else if (fullName.trim().length < 2) {
       errors.fullName = 'Full name must be at least 2 characters!';
     } else if (!/^[a-zA-Z\s]+$/.test(fullName.trim())) {

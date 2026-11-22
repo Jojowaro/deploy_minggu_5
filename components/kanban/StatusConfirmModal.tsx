@@ -233,12 +233,12 @@ export const StatusConfirmModal: React.FC<StatusConfirmModalProps> = ({
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className={`text-[10px] font-bold text-white px-2.5 py-0.5 rounded-full ${currentConfig.badgeBg}`}>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`w-[96px] h-[26px] flex items-center justify-center text-center text-[11px] font-medium text-white rounded-full shadow-xs ${currentConfig.badgeBg}`}>
                 {currentConfig.badgeLabel}
               </span>
-              <ArrowRight className="w-3 h-3 text-slate-400" />
-              <span className={`text-[10px] font-bold text-white px-2.5 py-0.5 rounded-full ${targetConfig.badgeBg}`}>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className={`w-[96px] h-[26px] flex items-center justify-center text-center text-[11px] font-medium text-white rounded-full shadow-xs ${targetConfig.badgeBg}`}>
                 {targetConfig.badgeLabel}
               </span>
             </div>

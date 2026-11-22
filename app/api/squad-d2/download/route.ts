@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
   if (candidateId && candidateId !== 'c-rusdi-default') {
     try {
       const res = await fetch(
-        `${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=*,d2_job_posts(title)`,
+        `${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=*`,
         {
           headers: {
             'Authorization': `Bearer ${supabaseKey}`,
@@ -75,7 +75,24 @@ export async function GET(request: NextRequest) {
         if (rows && rows.length > 0) {
           candidate = rows[0];
           candidateName = candidate.full_name || candidateName;
-          positionTitle = candidate.d2_job_posts?.title || positionTitle;
+          if (candidate.job_id) {
+            const posRes = await fetch(
+              `${baseUrl}/rest/v1/d1_job_positions?id=eq.${encodeURIComponent(candidate.job_id)}&select=nama_posisi`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${supabaseKey}`,
+                  'apikey': supabaseKey,
+                },
+                cache: 'no-store',
+              }
+            );
+            if (posRes.ok) {
+              const posRows = await posRes.json();
+              if (posRows && posRows[0]?.nama_posisi) {
+                positionTitle = posRows[0].nama_posisi;
+              }
+            }
+          }
         }
       }
     } catch {

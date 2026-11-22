@@ -135,6 +135,9 @@ export async function PATCH(request: NextRequest) {
       isNotEligible = false,
       interviewDetails,
       jobTitle,
+      employeeTier,
+      employeeId,
+      rejectedAtStage,
     } = body;
 
     if (!candidateId || !newStatus) {
@@ -161,6 +164,9 @@ export async function PATCH(request: NextRequest) {
       reason: finalReason,
       interviewDetails,
       jobTitle,
+      employeeTier,
+      employeeId,
+      rejectedAtStage,
     });
 
     if (!result.success) {

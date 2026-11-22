@@ -13,11 +13,31 @@ import {
   ArrowLeft,
   UploadCloud,
   Check,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { RegistrationWayUi, JobPost } from '../../types/candidate';
 import Header from '@/components/Header';
 import { DEFAULT_ACTIVE_JOB_POSTS } from '../../constants/jobs';
 import Link from 'next/link';
+
+export interface SocialMediaItem {
+  id: string;
+  platform: string;
+  handle: string;
+}
+
+const COMMON_PLATFORMS = [
+  'Instagram',
+  'LinkedIn',
+  'TikTok',
+  'GitHub',
+  'Twitter / X',
+  'YouTube',
+  'Facebook',
+  'Behance / Dribbble',
+  'Other',
+];
 
 function RegistrationFormContent() {
   const router = useRouter();
@@ -31,7 +51,9 @@ function RegistrationFormContent() {
   const [nik, setNik] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [socialMedia, setSocialMedia] = useState('');
+  const [socialMediaList, setSocialMediaList] = useState<SocialMediaItem[]>([
+    { id: 'sm-1', platform: 'Instagram', handle: '' },
+  ]);
   const [portfolioUrl, setPortfolioUrl] = useState('');
   const [skills, setSkills] = useState('');
   const [registrationWay, setRegistrationWay] = useState<RegistrationWayUi>('recommendation');
@@ -53,7 +75,6 @@ function RegistrationFormContent() {
   const nikId = useId();
   const emailId = useId();
   const phoneId = useId();
-  const socialMediaId = useId();
   const portfolioId = useId();
   const skillsId = useId();
 
@@ -104,10 +125,10 @@ function RegistrationFormContent() {
     const errors: Record<string, string> = {};
 
     if (!fullName.trim()) {
-      errors.fullName = '/* Full Name */ must be filled!';
+      errors.fullName = 'Full Name must be filled!';
     } else if (fullName.trim().length < 2) {
       errors.fullName = 'Full name must be at least 2 characters!';
-    } else if (!/^[a-zA-Z\s]+$/.test(fullName.trim())) {
+    } else if (!/^[a-zA-Z\s'’]+$/.test(fullName.trim())) {
       errors.fullName = 'Invalid Format, must contain letters only';
     }
 
@@ -132,9 +153,10 @@ function RegistrationFormContent() {
       errors.phoneNumber = 'Invalid phone number format.';
     }
 
-    // Social Media Username is mandatory
-    if (!socialMedia.trim()) {
-      errors.socialMedia = 'Social Media Username must be filled!';
+    // Social Media Accounts are mandatory (at least 1 account filled)
+    const filledSocialMedias = socialMediaList.filter((s) => s.handle.trim());
+    if (filledSocialMedias.length === 0) {
+      errors.socialMedia = 'Social Media must be filled!';
     }
 
     // Skill Portofolio Link is mandatory
@@ -273,12 +295,49 @@ function RegistrationFormContent() {
     }
   };
 
+  const addSocialMedia = () => {
+    setSocialMediaList((prev) => [
+      ...prev,
+      {
+        id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        platform: 'Instagram',
+        handle: '',
+      },
+    ]);
+  };
+
+  const removeSocialMedia = (id: string) => {
+    setSocialMediaList((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
+  const updateSocialMediaPlatform = (id: string, platform: string) => {
+    setSocialMediaList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, platform } : item))
+    );
+  };
+
+  const updateSocialMediaHandle = (id: string, handle: string) => {
+    setSocialMediaList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, handle } : item))
+    );
+    if (clientErrors.socialMedia) {
+      setClientErrors((prev) => {
+        const next = { ...prev };
+        delete next.socialMedia;
+        return next;
+      });
+    }
+  };
+
   const resetForm = () => {
     setFullName('');
     setNik('');
     setEmail('');
     setPhoneNumber('');
-    setSocialMedia('');
+    setSocialMediaList([{ id: 'sm-1', platform: 'Instagram', handle: '' }]);
     setPortfolioUrl('');
     setSkills('');
     setRegistrationWay('recommendation');
@@ -305,12 +364,17 @@ function RegistrationFormContent() {
 
     if (!selectedFile) return;
 
+    const combinedSocialMedia = socialMediaList
+      .filter((s) => s.handle.trim())
+      .map((s) => `${s.platform}: ${s.handle.trim()}`)
+      .join(', ');
+
     const formData = new FormData();
     formData.append('fullName', fullName);
     formData.append('nik', nik.trim());
     formData.append('email', email);
     formData.append('phoneNumber', phoneNumber.trim());
-    formData.append('socialMedia', socialMedia.trim());
+    formData.append('socialMedia', combinedSocialMedia);
     formData.append('portfolioUrl', portfolioUrl.trim());
     formData.append('skills', skills.trim());
     formData.append('registrationWay', registrationWay);
@@ -476,8 +540,8 @@ function RegistrationFormContent() {
             {/* FIELD 1: FULL NAME */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label htmlFor={fullNameId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={fullNameId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   FULL NAME*
                 </label>
               </div>
@@ -508,8 +572,8 @@ function RegistrationFormContent() {
                 />
               </div>
               {clientErrors.fullName && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.fullName}</span>
                 </p>
               )}
@@ -518,8 +582,8 @@ function RegistrationFormContent() {
             {/* FIELD 2: EMAIL */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label htmlFor={emailId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={emailId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   EMAIL*
                 </label>
               </div>
@@ -550,8 +614,8 @@ function RegistrationFormContent() {
                 />
               </div>
               {clientErrors.email && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.email}</span>
                 </p>
               )}
@@ -561,12 +625,12 @@ function RegistrationFormContent() {
             <div className="w-full">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                  <label htmlFor={nikId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                  <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                  <label htmlFor={nikId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                     NIK*
                   </label>
                 </div>
-                <span className="text-[11px] text-slate-400 font-normal">Kunci Pendeteksi Sekunder (16 Digit)</span>
+                <span className="text-xs text-slate-500 font-medium">Kunci Pendeteksi Sekunder (16 Digit)</span>
               </div>
 
               <div
@@ -597,8 +661,8 @@ function RegistrationFormContent() {
                 />
               </div>
               {clientErrors.nik && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.nik}</span>
                 </p>
               )}
@@ -607,8 +671,8 @@ function RegistrationFormContent() {
             {/* FIELD 4: PHONE NUMBER (Must Filled!) */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label htmlFor={phoneId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={phoneId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   PHONE NUMBER*
                 </label>
               </div>
@@ -639,50 +703,99 @@ function RegistrationFormContent() {
                 />
               </div>
               {clientErrors.phoneNumber && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.phoneNumber}</span>
                 </p>
               )}
             </div>
 
-            {/* FIELD 5: SOCIAL MEDIA USERNAME (e.g Instagram, Tiktok) */}
+            {/* FIELD 5: SOCIAL MEDIA ACCOUNTS (Dynamic per-platform) */}
             <div className="w-full">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label htmlFor={socialMediaId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
-                  SOCIAL MEDIA USERNAME (e.g Instagram, Tiktok)*
-                </label>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                  <label className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
+                    SOCIAL MEDIA ACCOUNTS*
+                  </label>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">Bisa menambahkan lebih dari 1 akun</span>
               </div>
 
-              <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
-                  clientErrors.socialMedia ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
-                }`}
-              >
-                <input
-                  id={socialMediaId}
-                  name="socialMedia"
-                  type="text"
-                  value={socialMedia}
-                  onChange={(e) => {
-                    setSocialMedia(e.target.value);
-                    if (clientErrors.socialMedia) {
-                      setClientErrors((prev) => {
-                        const n = { ...prev };
-                        delete n.socialMedia;
-                        return n;
-                      });
-                    }
-                  }}
-                  placeholder="Input Social Media"
-                  className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
-                  disabled={isPending}
-                />
+              <div className="space-y-3">
+                {socialMediaList.map((item) => (
+                  <div key={item.id} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    {/* Platform Selector */}
+                    <div className="relative w-full sm:w-52 shrink-0">
+                      <select
+                        value={item.platform}
+                        onChange={(e) => updateSocialMediaPlatform(item.id, e.target.value)}
+                        disabled={isPending}
+                        className="w-full h-14 md:h-16 px-4 bg-neutral-100 border border-neutral-700 rounded-2xl text-sm md:text-base font-semibold text-slate-800 focus:outline-none focus:border-blue-600 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] appearance-none cursor-pointer"
+                      >
+                        {COMMON_PLATFORMS.map((plat) => (
+                          <option key={plat} value={plat} className="text-slate-800">
+                            {plat}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Handle or URL Input */}
+                    <div
+                      className={`relative flex-1 rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 ${
+                        clientErrors.socialMedia && !item.handle.trim()
+                          ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]'
+                          : ''
+                      }`}
+                    >
+                      <input
+                        type="text"
+                        value={item.handle}
+                        onChange={(e) => updateSocialMediaHandle(item.id, e.target.value)}
+                        placeholder={`Enter ${item.platform} username or URL (e.g. @username)`}
+                        className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
+                        disabled={isPending}
+                      />
+                    </div>
+
+                    {/* Delete button if more than 1 */}
+                    {socialMediaList.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSocialMedia(item.id)}
+                        disabled={isPending}
+                        className="h-14 md:h-16 px-4 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors flex items-center justify-center shrink-0 shadow-2xs"
+                        title="Hapus akun ini"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add More Social Media Button */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={addSocialMedia}
+                    disabled={isPending}
+                    className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 px-4 py-2.5 rounded-xl border border-blue-200/80 transition-all shadow-2xs active:scale-[0.98]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Akun Sosial Media</span>
+                  </button>
+                </div>
               </div>
+
               {clientErrors.socialMedia && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.socialMedia}</span>
                 </p>
               )}
@@ -691,8 +804,8 @@ function RegistrationFormContent() {
             {/* FIELD 6: SKILL PORTOFOLIO LINK (e.g GITHUB, BEHANCE) */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label htmlFor={portfolioId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={portfolioId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   SKILL PORTOFOLIO LINK (e.g GITHUB, BEHANCE)*
                 </label>
               </div>
@@ -723,8 +836,8 @@ function RegistrationFormContent() {
                 />
               </div>
               {clientErrors.portfolioUrl && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.portfolioUrl}</span>
                 </p>
               )}
@@ -733,8 +846,8 @@ function RegistrationFormContent() {
             {/* FIELD 7: SKILL DESCRIPTION (Must filled, Max 20 Words!) */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label htmlFor={skillsId} className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label htmlFor={skillsId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   SKILL DESCRIPTION (Please tell your confidence skill based on your experience in 20 Words)*
                 </label>
               </div>
@@ -765,18 +878,18 @@ function RegistrationFormContent() {
                 />
               </div>
 
-              <div className="flex items-center justify-between mt-1 px-1">
+              <div className="flex items-center justify-between mt-2 px-1">
                 {clientErrors.skills ? (
-                  <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <p className="text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                     <span>{clientErrors.skills}</span>
                   </p>
                 ) : (
                   <span />
                 )}
                 <span
-                  className={`text-xs font-semibold ${
-                    wordCount > 20 ? 'text-rose-600 font-bold' : 'text-slate-400'
+                  className={`text-sm font-bold ${
+                    wordCount > 20 ? 'text-rose-600' : 'text-slate-500'
                   }`}
                 >
                   {wordCount}/20
@@ -789,8 +902,8 @@ function RegistrationFormContent() {
             {/* ================================================================= */}
             <div className="w-full">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   CURRICULUM VITAE (PDF)*
                 </label>
               </div>
@@ -842,10 +955,10 @@ function RegistrationFormContent() {
                   </svg>
                 </div>
 
-                <p className="text-xs md:text-sm font-bold tracking-widest text-neutral-600 uppercase text-center">
+                <p className="text-sm md:text-base font-bold tracking-widest text-neutral-600 uppercase text-center">
                   UPLOAD YOUR FILE HERE
                 </p>
-                <p className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase text-center mt-1">
+                <p className="text-xs font-semibold tracking-wider text-neutral-500 uppercase text-center mt-1">
                   MAX 5 MB
                 </p>
 
@@ -876,8 +989,8 @@ function RegistrationFormContent() {
               </div>
 
               {clientErrors.cvFile && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.cvFile}</span>
                 </p>
               )}
@@ -889,12 +1002,12 @@ function RegistrationFormContent() {
             <div className="w-full">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                  <label className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                  <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                  <label className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                     CERTIFICATE (PDF)
                   </label>
                 </div>
-                <span className="text-[11px] text-slate-400 font-normal">Optional</span>
+                <span className="text-xs text-slate-500 font-medium">Optional</span>
               </div>
 
               {/* Upload Dropzone Box (Full Width, Matching Mockup) */}
@@ -944,10 +1057,10 @@ function RegistrationFormContent() {
                   </svg>
                 </div>
 
-                <p className="text-xs md:text-sm font-bold tracking-widest text-neutral-600 uppercase text-center">
+                <p className="text-sm md:text-base font-bold tracking-widest text-neutral-600 uppercase text-center">
                   UPLOAD YOUR FILE HERE
                 </p>
-                <p className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase text-center mt-1">
+                <p className="text-xs font-semibold tracking-wider text-neutral-500 uppercase text-center mt-1">
                   MAX 5 MB
                 </p>
 
@@ -978,20 +1091,20 @@ function RegistrationFormContent() {
               </div>
 
               {clientErrors.certificateFile && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.certificateFile}</span>
                 </p>
               )}
             </div>
 
             {/* ================================================================= */}
-            {/* FIELD 4: REGISTRATION WAY (Matching Image 1)                      */}
+            {/* FIELD 10: REGISTRATION WAY (Matching Image 1)                     */}
             {/* ================================================================= */}
             <div className="pt-1 w-full">
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shrink-0" />
-                <label className="text-xs font-bold tracking-wider text-slate-800 uppercase">
+                <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
+                <label className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
                   REGISTRATION WAY* 
                 </label>
               </div>
@@ -1053,8 +1166,8 @@ function RegistrationFormContent() {
               </div>
 
               {clientErrors.registrationWay && (
-                <p className="mt-1.5 text-xs text-rose-600 font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <p className="mt-2 text-sm text-rose-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                   <span>{clientErrors.registrationWay}</span>
                 </p>
               )}

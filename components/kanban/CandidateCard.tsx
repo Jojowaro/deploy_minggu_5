@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MoreVertical, Eye, ArrowRight, UserCheck, ShieldAlert, History, Trash2, Calendar, Edit3, ShieldCheck } from 'lucide-react';
 import { CandidateWithJob, CandidateStatus } from '@/app/squad-d2/src/types/candidate';
 import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
+import { formatOrdinal } from '@/utils/formatOrdinal';
 
 export interface CandidateCardProps {
   candidate: CandidateWithJob;
@@ -28,6 +29,26 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  function formatOrdinal(num: number): string {
+  const mod100 = num % 100;
+  
+  // Pengecualian khusus angka belasan (11, 12, 13 -> tetap menggunakan 'th')
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${num}th`;
+  }
+
+  switch (num % 10) {
+    case 1:
+      return `${num}st`;
+    case 2:
+      return `${num}nd`;
+    case 3:
+      return `${num}rd`;
+    default:
+      return `${num}th`;
+  }
+}
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -136,7 +157,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             {candidate.full_name}
           </h4>
           <p className="text-[12px] font-normal text-slate-500 mt-0.5 truncate">
-            {candidate.job_title || candidate.d2_job_posts?.title || 'Backend Engineer'}
+            {candidate.job_title || 'Backend Engineer'}
           </p>
         </div>
 
@@ -266,58 +287,58 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
       </div>
     </div>
 
-      {/* Badges Stack (Vertical Column layout matching Figma HRMS D - HR.jpg) */}
+      {/* Badges Stack (Vertical Column layout matching design) */}
       <div className="mt-3.5 flex flex-col items-start gap-1.5">
         {/* 1. Status Pill */}
         <span
-          className={`inline-flex items-center px-4 py-1 rounded-full text-[11px] font-semibold text-white shadow-xs ${statusBadgeBg}`}
+          className={`w-[118px] h-[26px] rounded-full text-[11px] font-bold text-white shadow-xs inline-flex items-center justify-center text-center ${statusBadgeBg}`}
         >
           {statusBadgeLabel}
         </span>
 
         {/* 2. Qualification Pill (Fit & Proper Preview) */}
         {isQualified && (
-          <span className="inline-flex items-center px-3.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#10b981] text-white shadow-xs">
-            QUALIFIED
+          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold tracking-wider bg-[#1ba86c] text-white shadow-xs inline-flex items-center justify-center text-center">
+            Qualified
           </span>
         )}
 
         {showNotCountedYet && (
-          <span className="inline-flex items-center px-3.5 py-0.5 rounded-full text-[10px] font-medium bg-[#94a3b8] text-white shadow-xs">
+          <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-[#94a3b8] text-white shadow-xs inline-flex items-center justify-center text-center">
             Not Counted Yet
           </span>
         )}
 
         {/* 3. History Badges (FR-D2-005 FR-05.2) */}
         {isRepeater && (
-          <span className="inline-flex items-center px-3.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#d97706] text-white shadow-xs">
-            Pelamar ke-{candidate.application_count || 2} Kali
+          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold bg-[#b47614] text-white shadow-xs inline-flex items-center justify-center text-center">
+            {formatOrdinal(candidate.application_count || 2)} Applicant
           </span>
         )}
 
         {/* 4. Multi-Posisi Parallel Application Badge (Section 3D) */}
         {hasParallelApplications && (
-          <span className="inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs">
-            Multi-Posisi ({candidate.parallel_applications_count} Tiket)
+          <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs inline-flex items-center justify-center text-center">
+            Multi-Posisi ({candidate.parallel_applications_count})
           </span>
         )}
 
         {/* 5. Specific Rejection Stage (Section 2 No 6: rejected_at_stage) */}
         {candidate.status === 'rejected' && candidate.rejected_at_stage && (
-          <span className="inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
-            Fase Gugur: {candidate.rejected_at_stage}
+          <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs inline-flex items-center justify-center text-center">
+            Gugur: {candidate.rejected_at_stage}
           </span>
         )}
 
         {isNotEligible && (
-          <span className="inline-flex items-center px-3.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#f43f5e] text-white shadow-xs">
+          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold bg-[#df3d58] text-white shadow-xs inline-flex items-center justify-center text-center">
             Not Eligible
           </span>
         )}
 
         {/* 6. Employee Provisioning Tier Badge (Section 3C) */}
         {candidate.employee_tier && (
-          <span className="inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+          <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs inline-flex items-center justify-center text-center">
             ⭐ {candidate.employee_tier.replace('_', ' ')}
           </span>
         )}

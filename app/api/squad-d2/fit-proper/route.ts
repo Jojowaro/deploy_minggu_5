@@ -132,13 +132,22 @@ async function getOrCreateCandidateState(candidateId: string): Promise<Candidate
     });
 
     const finalNames = initialNames.length > 0 ? initialNames : DEFAULT_REQUIREMENT_NAMES;
-    const initialActive = ['Leadership', 'Capability', 'Experience', 'Certification', 'Skill'];
+    const initialActive = ['Leadership', 'Capability', 'Experience', 'Certification', 'Skill', 'Communication'];
+    const defaultPercentages: Record<string, number> = {
+      Leadership: 80,
+      Capability: 50,
+      Experience: 50,
+      Certification: 50,
+      Skill: 50,
+      Communication: 10,
+    };
 
     const defaultReqs: FitProperRequirement[] = finalNames.map((name, index) => ({
       id: `req-${candidateId}-${index + 1}-${Date.now() + index}`,
       candidate_id: candidateId,
       name,
       status: initialActive.includes(name) ? 'Fullfilled' : null,
+      percentage: defaultPercentages[name] !== undefined ? defaultPercentages[name] : 50,
       is_deleted: false,
       created_at: new Date(Date.now() - (finalNames.length - index) * 60000).toISOString(),
     }));
@@ -330,7 +339,8 @@ export async function POST(request: NextRequest) {
       id: id || body.requirementId || `req-${candidateId}-${Date.now()}`,
       candidate_id: candidateId,
       name: name.trim(),
-      status: null,
+      status: body.status || null,
+      percentage: typeof body.percentage === 'number' ? Math.max(0, Math.min(100, body.percentage)) : 50,
       is_deleted: false,
       created_at: new Date().toISOString(),
     };
@@ -360,7 +370,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { candidateId, requirementId, name, status, is_deleted, threshold } = body;
+    const { candidateId, requirementId, name, status, percentage: newPercentage, is_deleted, threshold } = body;
 
     if (!candidateId) {
       return NextResponse.json(
@@ -392,6 +402,10 @@ export async function PATCH(request: NextRequest) {
 
       if (status !== undefined) {
         target.status = status as RequirementStatus;
+      }
+
+      if (newPercentage !== undefined && !isNaN(Number(newPercentage))) {
+        target.percentage = Math.max(0, Math.min(100, Number(newPercentage)));
       }
 
       // Soft delete: is_deleted = true (Never hard delete)

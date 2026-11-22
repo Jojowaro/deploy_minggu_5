@@ -69,8 +69,8 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
       const generated = generateNip('trainee');
       setTier('trainee');
       setEmployeeId(generated);
-      setPositionTitle(candidate.job_title || candidate.d2_job_posts?.title || 'Staf Operasional');
-      setDepartment(candidate.d2_job_posts?.department || 'Operasional Transportasi & Logistik');
+      setPositionTitle(candidate.job_title || 'Staf Operasional');
+      setDepartment('Operasional Transportasi & Logistik');
 
       // Default start date: next Monday
       const d = new Date();

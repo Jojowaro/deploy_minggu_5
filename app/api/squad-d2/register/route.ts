@@ -47,16 +47,6 @@ function sanitizeText(input: string): string {
   if (!input) return '';
   return input
     .replace(/<[^>]*>/g, '')
-    .replace(/[<>'"&]/g, (char) => {
-      switch (char) {
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case "'": return '&#39;';
-        case '"': return '&quot;';
-        case '&': return '&amp;';
-        default: return char;
-      }
-    })
     .trim();
 }
 
@@ -168,7 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       errors.fullName = ['Full name must be at least 2 characters!'];
     } else if (fullName.length > 100) {
       errors.fullName = ['Full name maximum 100 characters!'];
-    } else if (!/^[a-zA-Z\s]+$/.test(fullName)) {
+    } else if (!/^[a-zA-Z\s'’]+$/.test(fullName)) {
       errors.fullName = ['Invalid Format, must contain letters only'];
     }
 

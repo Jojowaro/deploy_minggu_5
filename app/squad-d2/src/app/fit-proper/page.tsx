@@ -52,7 +52,7 @@ function FitProperContent() {
 
   // Candidate Name, Role & Initials
   const candidateName = candidate?.full_name || 'Rusdi';
-  const candidateRole = candidate?.job_title || candidate?.d2_job_posts?.title || 'Backend Engineer';
+  const candidateRole = candidate?.job_title || 'Backend Engineer';
   const candidateInitials = useMemo(() => {
     const parts = candidateName.trim().split(' ').filter(Boolean);
     if (parts.length >= 2) {
@@ -77,6 +77,13 @@ function FitProperContent() {
   // UI Interactive States
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+
+  // Percentage Input Modal Target
+  const [percentageModalTarget, setPercentageModalTarget] = useState<{
+    requirement: FitProperRequirement;
+    isEditing: boolean;
+  } | null>(null);
+  const [inputPercentage, setInputPercentage] = useState<number>(50);
 
   // Capability Fit Setting Modal State (Image 3 + Requirement Management)
   const [isSettingModalOpen, setIsSettingModalOpen] = useState(false);
@@ -269,7 +276,19 @@ function FitProperContent() {
           const json = await res.json();
           if (json.success && Array.isArray(json.requirements)) {
             if (isMounted) {
-              setRequirements(json.requirements);
+              const defaultPercs: Record<string, number> = {
+                Leadership: 80,
+                Capability: 50,
+                Experience: 50,
+                Certification: 50,
+                Skill: 50,
+                Communication: 10,
+              };
+              const enrichedReqs = json.requirements.map((r: FitProperRequirement) => ({
+                ...r,
+                percentage: typeof r.percentage === 'number' ? r.percentage : (defaultPercs[r.name] ?? 50),
+              }));
+              setRequirements(enrichedReqs);
               setThreshold(typeof json.threshold === 'number' ? json.threshold : 80);
               setTempThreshold(typeof json.threshold === 'number' ? json.threshold : 80);
               setIsLoadingReqs(false);
@@ -281,18 +300,18 @@ function FitProperContent() {
         console.warn('Failed to load requirements from API:', err);
       }
 
-      // Default requirements matching Image 1 & Image 2
+      // Default requirements matching Image 1 & Image 2 (exact 6 with percentages)
       if (isMounted) {
         const initialList: FitProperRequirement[] = [
-          { id: `req-1-${candidateId}`, candidate_id: candidateId, name: 'Leadership', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-2-${candidateId}`, candidate_id: candidateId, name: 'Capability', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-3-${candidateId}`, candidate_id: candidateId, name: 'Experience', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-4-${candidateId}`, candidate_id: candidateId, name: 'Certification', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-5-${candidateId}`, candidate_id: candidateId, name: 'Skill', status: 'Fullfilled', is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-6-${candidateId}`, candidate_id: candidateId, name: 'Communication', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-7-${candidateId}`, candidate_id: candidateId, name: 'Teamwork', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-8-${candidateId}`, candidate_id: candidateId, name: 'Respect', status: null, is_deleted: false, created_at: new Date().toISOString() },
-          { id: `req-9-${candidateId}`, candidate_id: candidateId, name: 'Kindness', status: null, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-1-${candidateId}`, candidate_id: candidateId, name: 'Leadership', status: 'Fullfilled', percentage: 80, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-2-${candidateId}`, candidate_id: candidateId, name: 'Capability', status: 'Fullfilled', percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-3-${candidateId}`, candidate_id: candidateId, name: 'Experience', status: 'Fullfilled', percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-4-${candidateId}`, candidate_id: candidateId, name: 'Certification', status: 'Fullfilled', percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-5-${candidateId}`, candidate_id: candidateId, name: 'Skill', status: 'Fullfilled', percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-6-${candidateId}`, candidate_id: candidateId, name: 'Communication', status: 'Fullfilled', percentage: 10, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-7-${candidateId}`, candidate_id: candidateId, name: 'Teamwork', status: null, percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-8-${candidateId}`, candidate_id: candidateId, name: 'Respect', status: null, percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
+          { id: `req-9-${candidateId}`, candidate_id: candidateId, name: 'Kindness', status: null, percentage: 50, is_deleted: false, created_at: new Date().toISOString() },
         ];
         setRequirements(initialList);
         setThreshold(80);
@@ -330,18 +349,22 @@ function FitProperContent() {
     );
   }, [availableOptions, searchQuery]);
 
-  // Calculation Metrics
+  // Calculation Metrics (Requirement percentages)
   const fulfilledCount = activeTags.length;
   const totalActiveCount = activeRequirements.length;
 
   const currentPercentage = useMemo(() => {
-    if (totalActiveCount === 0) return 0;
-    return Math.round((fulfilledCount / totalActiveCount) * 100);
-  }, [fulfilledCount, totalActiveCount]);
+    if (activeTags.length === 0) return 0;
+    const sum = activeTags.reduce(
+      (acc, r) => acc + (typeof r.percentage === 'number' ? r.percentage : 50),
+      0
+    );
+    return Math.round(sum / activeTags.length);
+  }, [activeTags]);
 
   const isCapabilityFit = useMemo(() => {
-    return totalActiveCount > 0 && currentPercentage >= threshold;
-  }, [totalActiveCount, currentPercentage, threshold]);
+    return activeTags.length > 0 && currentPercentage >= threshold;
+  }, [activeTags, currentPercentage, threshold]);
 
   // Algoritma Pengurangan (Target Syarat - Pelamar Penuhi = Missing Requirements)
   const missingRequirements = Math.max(0, totalActiveCount - fulfilledCount);
@@ -446,6 +469,41 @@ function FitProperContent() {
     }
     return '@rusdi.dev';
   }, [candidate?.social_media, candidate?.rejection_reason]);
+
+  const parsedSocialMedias = useMemo(() => {
+    if (!candidateSocialMedia || !candidateSocialMedia.trim()) return [];
+    const trimmed = candidateSocialMedia.trim();
+
+    try {
+      const json = JSON.parse(trimmed);
+      if (Array.isArray(json)) {
+        return json
+          .filter((item) => item && (item.handle || item.url || item.username))
+          .map((item) => ({
+            platform: item.platform || 'Social Media',
+            handle: item.handle || item.url || item.username || '',
+          }));
+      }
+    } catch {}
+
+    const delimiter = trimmed.includes('|') ? '|' : trimmed.includes(';') ? ';' : ',';
+    const parts = trimmed.split(delimiter).map((p: string) => p.trim()).filter(Boolean);
+
+    const results: { platform: string; handle: string }[] = [];
+    for (const part of parts) {
+      if (part.includes(':')) {
+        const idx = part.indexOf(':');
+        const platform = part.slice(0, idx).trim();
+        const handle = part.slice(idx + 1).trim();
+        if (handle) {
+          results.push({ platform, handle });
+        }
+      } else {
+        results.push({ platform: 'Social Media', handle: part });
+      }
+    }
+    return results.length > 0 ? results : [{ platform: 'Social Media', handle: trimmed }];
+  }, [candidateSocialMedia]);
 
   const candidatePortfolio = useMemo(() => {
     if (candidate?.portfolio_url) return candidate.portfolio_url;
@@ -623,6 +681,57 @@ function FitProperContent() {
       });
     } catch (err) {
       console.error('Failed to remove tag on server:', err);
+    }
+  };
+
+  // Open modal when adding tag from dropdown search
+  const handleSelectReqFromDropdown = (req: FitProperRequirement) => {
+    setPercentageModalTarget({ requirement: req, isEditing: false });
+    setInputPercentage(typeof req.percentage === 'number' ? req.percentage : 50);
+    setIsSearchDropdownOpen(false);
+  };
+
+  // Open modal when clicking tag on page to edit percentage
+  const handleOpenEditPercentage = (req: FitProperRequirement) => {
+    setPercentageModalTarget({ requirement: req, isEditing: true });
+    setInputPercentage(typeof req.percentage === 'number' ? req.percentage : 50);
+  };
+
+  // Save percentage (adds to page if not already or updates percentage)
+  const handleSavePercentage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!percentageModalTarget) return;
+
+    const cleanPercent = Math.max(0, Math.min(100, Number(inputPercentage) || 0));
+    const targetReq = percentageModalTarget.requirement;
+    const isEditing = percentageModalTarget.isEditing;
+
+    setRequirements((prev) =>
+      prev.map((r) =>
+        r.id === targetReq.id ? { ...r, status: 'Fullfilled', percentage: cleanPercent } : r
+      )
+    );
+
+    setPercentageModalTarget(null);
+    showFeedback(
+      isEditing
+        ? `Persentase "${targetReq.name}" diperbarui menjadi ${cleanPercent}%.`
+        : `Requirement "${targetReq.name}" (${cleanPercent}%) ditambahkan ke halaman.`
+    );
+
+    try {
+      await fetch('/api/squad-d2/fit-proper', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId,
+          requirementId: targetReq.id,
+          status: 'Fullfilled',
+          percentage: cleanPercent,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to update requirement percentage on server:', err);
     }
   };
 
@@ -976,17 +1085,17 @@ function FitProperContent() {
             </div>
           )}
 
-          {/* 2. Navigation Tabs Container: 1 Card Full-Width Corner-to-Corner with Centered Buttons */}
-          <div className="w-full rounded-2xl sm:rounded-full mb-8">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
+          {/* 2. Navigation Tabs Container: Capsule Pill matching UI/UX design */}
+          <div className="flex justify-center mb-8 w-full">
+            <div className="inline-flex max-w-3xl w-full p-1 rounded-full bg-slate-100/90 border border-slate-200/90 shadow-inner">
               {/* Tab 1: General information */}
               <button
                 type="button"
                 onClick={() => setActiveTab('general')}
-                className={`w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-200 cursor-pointer shadow-xs ${
+                className={`flex-1 py-2.5 sm:py-3 px-4 rounded-l-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer ${
                   activeTab === 'general'
-                    ? 'bg-[#0F2342] text-white font-bold shadow-sm'
-                    : 'bg-[#009688] hover:bg-[#0F2342] text-white opacity-90 hover:opacity-100'
+                    ? 'bg-[#1E3765] text-white font-bold shadow-sm'
+                    : 'text-slate-800 hover:text-slate-900 bg-transparent'
                 }`}
               >
                 General information
@@ -996,10 +1105,10 @@ function FitProperContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('calculation')}
-                className={`w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-200 cursor-pointer shadow-xs ${
+                className={`flex-1 py-2.5 sm:py-3 px-4  text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer ${
                   activeTab === 'calculation'
-                    ? 'bg-[#0F2342] text-white font-bold shadow-sm'
-                    : 'bg-[#009688] hover:bg-[#0F2342] text-white opacity-90 hover:opacity-100'
+                    ? 'bg-[#1E3765] text-white font-bold shadow-sm'
+                    : 'text-slate-800 hover:text-slate-900 bg-transparent'
                 }`}
               >
                 Fit &amp; Proper Calculation
@@ -1009,10 +1118,10 @@ function FitProperContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('rejected_history')}
-                className={`w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-200 cursor-pointer shadow-xs ${
+                className={`flex-1 py-2.5 sm:py-3 px-4 rounded-r-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer ${
                   activeTab === 'rejected_history'
-                    ? 'bg-[#0F2342] text-white font-bold shadow-sm'
-                    : 'bg-[#009688] hover:bg-[#0F2342] text-white opacity-90 hover:opacity-100'
+                    ? 'bg-[#1E3765] text-white font-bold shadow-sm'
+                    : 'text-slate-800 hover:text-slate-900 bg-transparent'
                 }`}
               >
                 Rejected History
@@ -1042,7 +1151,7 @@ function FitProperContent() {
                   </p>
                 </div>
 
-                {/* Tags on Page: Blue pill buttons with Checkmark matching Image 1 */}
+                {/* Tags on Page: Blue pill buttons with Name and Percentage matching Image */}
                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-h-[44px]">
                   {isLoadingReqs ? (
                     <div className="text-xs text-slate-400 flex items-center gap-2 py-2">
@@ -1058,12 +1167,15 @@ function FitProperContent() {
                       <button
                         key={req.id}
                         type="button"
-                        onClick={() => handleRemoveTag(req.id)}
-                        className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs sm:text-sm px-5 py-2 rounded-xl shadow-xs transition-all cursor-pointer group"
-                        title="Klik untuk menghapus requirement ini dari halaman"
+                        onClick={() => handleOpenEditPercentage(req)}
+                        className="inline-flex items-center justify-between gap-5 bg-[#1d64f2] hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer group min-w-[135px] sm:min-w-[145px]"
+                        title="Klik untuk mengubah persentase atau menghapus requirement ini"
                       >
                         <span>{req.name}</span>
-                        <Check className="w-4 h-4 text-white stroke-[2.5] group-hover:scale-110 transition-transform" />
+                        <span className="font-bold flex items-center gap-1 shrink-0">
+                          {req.percentage !== undefined ? `${req.percentage}%` : '50%'}
+                          <ChevronDown className="w-3.5 h-3.5 opacity-80 group-hover:opacity-100 transition-opacity" />
+                        </span>
                       </button>
                     ))
                   )}
@@ -1122,12 +1234,12 @@ function FitProperContent() {
                           <button
                             key={req.id}
                             type="button"
-                            onClick={() => handleAddTagFromDropdown(req.id)}
+                            onClick={() => handleSelectReqFromDropdown(req)}
                             className="w-full px-5 py-3 text-left text-xs sm:text-sm font-semibold text-slate-800 hover:bg-[#dde4ee] flex items-center justify-between transition-colors cursor-pointer group"
                           >
                             <span>{req.name}</span>
                             <span className="text-[11px] font-medium text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                              + Tambah ke Halaman
+                              + Input Persentase &amp; Tambah
                             </span>
                           </button>
                         ))}
@@ -1414,18 +1526,30 @@ function FitProperContent() {
                   </div>
                 </div>
 
-                {/* Kolom Kiri 4: SOCIAL MEDIA USERNAME */}
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                {/* Kolom Kiri 4: SOCIAL MEDIA (Field terpisah per akun) */}
+                <div className="flex items-start gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
                     <Globe className="w-5 h-5 text-blue-600" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      SOCIAL MEDIA USERNAME
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      SOCIAL MEDIA ACCOUNTS
                     </p>
-                    <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5 truncate">
-                      {candidateSocialMedia}
-                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {parsedSocialMedias.length > 0 ? (
+                        parsedSocialMedias.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm shadow-2xs"
+                          >
+                            <span className="font-bold text-blue-600">{item.platform}:</span>
+                            <span className="font-semibold text-slate-800">{item.handle}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm font-medium text-slate-400 italic">Tidak dicantumkan</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -2100,6 +2224,116 @@ function FitProperContent() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: INPUT / UBAH PERSENTASE REQUIREMENT                              */}
+      {/* ========================================================================= */}
+      {percentageModalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-900">
+                {percentageModalTarget.isEditing ? 'Ubah Persentase Requirement' : 'Input Persentase Requirement'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPercentageModalTarget(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-xs text-slate-500 mb-2">
+                {percentageModalTarget.isEditing
+                  ? 'Perbarui persentase pemenuhan untuk requirement:'
+                  : 'Tentukan persentase pemenuhan untuk requirement:'}
+              </p>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm border border-blue-100">
+                <span>{percentageModalTarget.requirement.name}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSavePercentage} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Persentase Pemenuhan (0 - 100%)
+                </label>
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={inputPercentage}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : Math.max(0, Math.min(100, Number(e.target.value)));
+                      setInputPercentage(val);
+                    }}
+                    className="w-24 h-12 text-center text-xl font-bold rounded-2xl border-2 border-blue-500 text-slate-800 bg-[#f8faff] focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-xs"
+                    autoFocus
+                  />
+                  <span className="text-2xl font-bold text-slate-600">%</span>
+                </div>
+
+                {/* Quick preset percentage pills */}
+                <div className="flex items-center justify-center gap-1.5 mt-3 flex-wrap">
+                  {[10, 25, 50, 75, 80, 100].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setInputPercentage(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        inputPercentage === preset
+                          ? 'bg-[#1d64f2] text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {preset}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+                {percentageModalTarget.isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleRemoveTag(percentageModalTarget.requirement.id);
+                      setPercentageModalTarget(null);
+                    }}
+                    className="px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Hapus dari Halaman
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPercentageModalTarget(null)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1d64f2] hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                  >
+                    {percentageModalTarget.isEditing ? 'Simpan' : 'Tambahkan'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

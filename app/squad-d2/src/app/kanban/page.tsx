@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useTransition, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useTransition, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Menu, 
@@ -73,11 +73,15 @@ export default function KanbanPage() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             // Auto-migrate legacy column labels: APPLIED -> CANDIDATE, ASSESSMENT -> SCREENING (Section 2 No 2 & 3)
             return parsed.map((c: KanbanColumnConfig) => {
-              if (c.id === 'applied' && (c.label === 'APPLIED' || !c.label)) {
-                return { ...c, label: 'CANDIDATE', badgeLabel: 'Candidate' };
-              }
-              if (c.id === 'assessment' && (c.label === 'ASSESSEMENT' || c.label === 'ASSESSMENT')) {
-                return { ...c, label: 'SCREENING', badgeLabel: 'Screening' };
+              const defaultCol = KANBAN_COLUMNS.find((kc) => kc.id === c.id);
+              if (defaultCol) {
+                return {
+                  ...c,
+                  badgeBg: defaultCol.badgeBg,
+                  colorHex: defaultCol.colorHex,
+                  label: defaultCol.label,
+                  badgeLabel: defaultCol.badgeLabel,
+                };
               }
               return c;
             });
@@ -302,7 +306,7 @@ export default function KanbanPage() {
 
     return candidates.filter((c) => {
       const matchName = c.full_name.toLowerCase().includes(q);
-      const matchJob = (c.job_title || c.d2_job_posts?.title || '').toLowerCase().includes(q);
+      const matchJob = (c.job_title || '').toLowerCase().includes(q);
       const matchEmail = (c.email || '').toLowerCase().includes(q);
       const matchStatus = (c.status || '').toLowerCase().includes(q);
       const matchRepeater = (c.application_count || 1) > 1 && 'repeater'.includes(q);
@@ -419,9 +423,90 @@ export default function KanbanPage() {
 
   // ============================================================================
   // DRAG & DROP & OPTIMISTIC UI LOGIC (TR-D2-002 TR-06 < 50ms)
+  // Auto-scroll horizontally when dragging a candidate card near edges
   // ============================================================================
+  const kanbanScrollRef = useRef<HTMLDivElement>(null);
+  const autoScrollSpeed = useRef<number>(0);
+  const scrollRafId = useRef<number | null>(null);
+  const isDraggingCard = useRef<boolean>(false);
+
+  const stopAutoScroll = useCallback(() => {
+    autoScrollSpeed.current = 0;
+    if (scrollRafId.current !== null) {
+      cancelAnimationFrame(scrollRafId.current);
+      scrollRafId.current = null;
+    }
+  }, []);
+
+  const startAutoScroll = useCallback((speed: number) => {
+    autoScrollSpeed.current = speed;
+    if (scrollRafId.current !== null) return;
+
+    const step = () => {
+      if (autoScrollSpeed.current !== 0 && kanbanScrollRef.current) {
+        kanbanScrollRef.current.scrollLeft += autoScrollSpeed.current;
+        scrollRafId.current = requestAnimationFrame(step);
+      } else {
+        scrollRafId.current = null;
+      }
+    };
+    scrollRafId.current = requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalDragStart = () => {
+      isDraggingCard.current = true;
+    };
+
+    const handleGlobalDragOver = (e: DragEvent) => {
+      if (!isDraggingCard.current || !kanbanScrollRef.current) return;
+
+      const rect = kanbanScrollRef.current.getBoundingClientRect();
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+
+      // Only auto-scroll when cursor is vertically aligned with the Kanban board
+      if (mouseY >= rect.top - 60 && mouseY <= rect.bottom + 60) {
+        const edgeThreshold = 140; // 140px zone near left/right edges
+        const maxScrollSpeed = 20;
+
+        if (mouseX > rect.right - edgeThreshold) {
+          // Near right edge -> scroll right
+          const ratio = Math.min(1, Math.max(0.15, (mouseX - (rect.right - edgeThreshold)) / edgeThreshold));
+          startAutoScroll(Math.round(ratio * maxScrollSpeed));
+        } else if (mouseX < rect.left + edgeThreshold) {
+          // Near left edge -> scroll left
+          const ratio = Math.min(1, Math.max(0.15, ((rect.left + edgeThreshold) - mouseX) / edgeThreshold));
+          startAutoScroll(-Math.round(ratio * maxScrollSpeed));
+        } else {
+          stopAutoScroll();
+        }
+      } else {
+        stopAutoScroll();
+      }
+    };
+
+    const handleGlobalDragEnd = () => {
+      isDraggingCard.current = false;
+      stopAutoScroll();
+    };
+
+    window.addEventListener('dragstart', handleGlobalDragStart);
+    window.addEventListener('dragover', handleGlobalDragOver);
+    window.addEventListener('dragend', handleGlobalDragEnd);
+    window.addEventListener('drop', handleGlobalDragEnd);
+
+    return () => {
+      window.removeEventListener('dragstart', handleGlobalDragStart);
+      window.removeEventListener('dragover', handleGlobalDragOver);
+      window.removeEventListener('dragend', handleGlobalDragEnd);
+      window.removeEventListener('drop', handleGlobalDragEnd);
+      stopAutoScroll();
+    };
+  }, [startAutoScroll, stopAutoScroll]);
+
   const handleDragStart = (e: React.DragEvent, candidate: CandidateWithJob) => {
-    // Already set in CandidateCard, but exposed here if needed
+    isDraggingCard.current = true;
   };
 
   const executeStatusTransition = async (
@@ -926,7 +1011,10 @@ export default function KanbanPage() {
               /* ========================================================================= */
               /* 4. THE KANBAN COLUMNS (Horizontal scrollable with Add Status column)      */
               /* ========================================================================= */
-              <div className="flex gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin">
+              <div
+                ref={kanbanScrollRef}
+                className="flex gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin"
+              >
                 {visibleColumns.map((col) => (
                   <div key={col.id} className="min-w-[280px] w-[280px] shrink-0 flex flex-col">
                     <KanbanColumn

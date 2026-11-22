@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, Video, MapPin, Clock, User, Building, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, ChevronDown, AlertCircle } from 'lucide-react';
 import { CandidateWithJob } from '@/app/squad-d2/src/types/candidate';
 
 export interface InterviewScheduleData {
@@ -25,6 +25,8 @@ export interface TransferEmailModalProps {
   onSave: (data: InterviewScheduleData) => Promise<void> | void;
 }
 
+const ANDIMA_BRANCHES = ['Jakarta', 'Balikpapan', 'Samarinda', 'Surabaya'];
+
 export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   isOpen,
   candidate,
@@ -35,48 +37,49 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
 }) => {
   const [scheduleType, setScheduleType] = useState<'online' | 'onsite'>('online');
   const [date, setDate] = useState('');
-  const [hour, setHour] = useState('10');
+  const [hour, setHour] = useState('00');
   const [minute, setMinute] = useState('00');
-  const [meetLink, setMeetLink] = useState('https://meet.google.com/andima-interview');
-  
-  // Onsite fields (Section 3B)
-  const [locationAddress, setLocationAddress] = useState('Pool Andima Cakung, Jl. Raya Bekasi KM 24, Jakarta Timur');
-  const [roomName, setRoomName] = useState('Ruang Rapat Operasional B Lantai 2');
-  const [contactPerson, setContactPerson] = useState('Bpk. Hendra (Koordinator Pool - 0812-3456-7890)');
-  const [notes, setNotes] = useState('Membawa KTP asli, SIM yang relevan, dan berkas lamaran cetak.');
+  const [meetLink, setMeetLink] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setLocationDropdownOpen(false);
+      }
+    }
+    if (locationDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [locationDropdownOpen]);
 
   useEffect(() => {
     if (initialData) {
       setScheduleType(initialData.scheduleType || 'online');
       setDate(initialData.date || '');
-      setHour(initialData.hour || '10');
+      setHour(initialData.hour || '00');
       setMinute(initialData.minute || '00');
-      if (initialData.meetLink) setMeetLink(initialData.meetLink);
-      if (initialData.locationAddress) setLocationAddress(initialData.locationAddress);
-      if (initialData.roomName) setRoomName(initialData.roomName);
-      if (initialData.contactPerson) setContactPerson(initialData.contactPerson);
-      if (initialData.notes) setNotes(initialData.notes);
+      setMeetLink(initialData.meetLink || '');
+      setLocationAddress(initialData.locationAddress || '');
     } else {
-      // Default to tomorrow 10:00
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const yyyy = tomorrow.getFullYear();
-      const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-      const dd = String(tomorrow.getDate()).padStart(2, '0');
-      setDate(`${yyyy}-${mm}-${dd}`);
-      setHour('10');
+      setDate('');
+      setHour('00');
       setMinute('00');
       setScheduleType('online');
-      setMeetLink('https://meet.google.com/andima-interview');
-      setLocationAddress('Pool Andima Cakung, Jl. Raya Bekasi KM 24, Jakarta Timur');
-      setRoomName('Ruang Rapat Operasional B Lantai 2');
-      setContactPerson('Bpk. Hendra (Koordinator Pool - 0812-3456-7890)');
-      setNotes('Membawa KTP asli, SIM yang relevan, dan berkas lamaran fisik.');
+      setMeetLink('');
+      setLocationAddress('');
     }
     setErrorMsg(null);
+    setLocationDropdownOpen(false);
   }, [initialData, isOpen]);
 
   if (!isOpen || !candidate) return null;
@@ -84,17 +87,17 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) {
-      setErrorMsg('Silakan tentukan tanggal wawancara.');
+      setErrorMsg('Silakan tentukan tanggal wawancara (Select Date).');
       return;
     }
 
     if (scheduleType === 'online' && !meetLink.trim()) {
-      setErrorMsg('Silakan masukkan tautan meet link (Google Meet / Zoom).');
+      setErrorMsg('Silakan masukkan tautan meet link (input link).');
       return;
     }
 
-    if (scheduleType === 'onsite' && !locationAddress.trim()) {
-      setErrorMsg('Silakan masukkan alamat fisik lokasi wawancara onsite.');
+    if (scheduleType === 'onsite' && (!locationAddress.trim() || locationAddress === 'Select Location')) {
+      setErrorMsg('Silakan pilih lokasi kantor cabang Andima.');
       return;
     }
 
@@ -102,14 +105,11 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
     try {
       await onSave({
         date,
-        hour: hour.padStart(2, '0'),
-        minute: minute.padStart(2, '0'),
+        hour: hour ? hour.padStart(2, '0') : '00',
+        minute: minute ? minute.padStart(2, '0') : '00',
         scheduleType,
         meetLink: scheduleType === 'online' ? meetLink.trim() : undefined,
         locationAddress: scheduleType === 'onsite' ? locationAddress.trim() : undefined,
-        roomName: scheduleType === 'onsite' ? roomName.trim() : undefined,
-        contactPerson: scheduleType === 'onsite' ? contactPerson.trim() : undefined,
-        notes: notes.trim(),
       });
       onClose();
     } catch (err: unknown) {
@@ -126,13 +126,14 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
         className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transform animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Header Banner matching the user image (royal blue gradient) */}
-        <div className="h-16 w-full bg-gradient-to-r from-blue-600 via-blue-700 to-[#102a54] relative shrink-0">
+        {/* Top Header Banner matching user design (deep royal blue gradient) */}
+        <div className="h-16 w-full bg-gradient-to-r from-blue-600 via-blue-700 to-[#0e274a] relative shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="absolute top-4 right-4 p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
+            aria-label="Close modal"
           >
             <X className="w-5 h-5" />
           </button>
@@ -142,20 +143,13 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
         <div className="p-6 sm:p-8 overflow-y-auto">
           {/* Main Title matching user screenshot */}
           <h2 className="text-2xl sm:text-[26px] font-black text-center text-slate-900 tracking-tight uppercase">
-            TRANSFER EMAIL SETTING
+            INTERVIEW SETTING
           </h2>
 
-          <p className="text-center text-xs text-slate-500 mt-1 mb-2">
-            {isEditMode ? 'Perbarui jadwal interview untuk' : 'Atur jadwal interview dan pengiriman notifikasi kepada'}{' '}
+          <p className="text-center text-xs text-slate-500 mt-1 mb-4">
+            {isEditMode ? 'Perbarui jadwal interview untuk' : 'Atur jadwal interview untuk'}{' '}
             <strong className="text-slate-800 font-semibold">{candidate.full_name}</strong> ({candidate.job_title || 'Pelamar'})
           </p>
-
-          {candidate.email && (
-            <div className="flex items-center justify-center gap-1.5 text-xs text-blue-600 font-semibold mb-5">
-              <span>✉ Email Tujuan:</span>
-              <span className="bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 font-mono">{candidate.email}</span>
-            </div>
-          )}
 
           {errorMsg && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium text-center flex items-center justify-center gap-2">
@@ -165,183 +159,170 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Metode Interview Switch (Online vs Onsite per Section 3B) */}
-            <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setScheduleType('online')}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  scheduleType === 'online'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                }`}
-              >
-                <Video className="w-4 h-4" />
-                <span>Online (Video Call / Google Meet)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setScheduleType('onsite')}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  scheduleType === 'onsite'
-                    ? 'bg-[#0F2342] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                }`}
-              >
-                <MapPin className="w-4 h-4" />
-                <span>Onsite (Tatap Muka / Pool Armada)</span>
-              </button>
+            {/* Tab Pill Switcher (Online vs Onsite per UI screenshot) */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex p-1 rounded-full bg-slate-100 border border-slate-200 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setScheduleType('online')}
+                  className={`px-6 py-2 rounded-l-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    scheduleType === 'online'
+                      ? 'bg-[#1E3765] text-white shadow-sm'
+                      : 'text-slate-700 hover:text-slate-900 bg-transparent'
+                  }`}
+                >
+                  Online (Video Call)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleType('onsite')}
+                  className={`px-6 py-2 rounded-r-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    scheduleType === 'onsite'
+                      ? 'bg-[#1E3765] text-white shadow-sm'
+                      : 'text-slate-700 hover:text-slate-900 bg-transparent'
+                  }`}
+                >
+                  Onsite (Pool Armada)
+                </button>
+              </div>
             </div>
 
-            {/* Table Card Container matching Image layout */}
-            <div className="bg-[#f0f4f8] rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs">
+            {/* Condition & Control Table Container matching Image layout */}
+            <div className="bg-[#f0f4f8] rounded-2xl border border-slate-200/90 overflow-visible shadow-xs p-5 sm:p-6 mb-6">
               {/* Header Row: Condition | Control */}
-              <div className="grid grid-cols-2 px-6 py-3.5 border-b border-slate-200 font-bold text-slate-800 text-sm">
-                <div>Parameter</div>
-                <div className="text-right pr-2">Pengaturan Jadwal</div>
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 font-bold text-slate-800 text-base">
+                <span>Condition</span>
+                <span>Control</span>
               </div>
 
               {/* Row 1: Date */}
-              <div className="grid grid-cols-2 items-center px-6 py-3.5 border-b border-slate-200">
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Tanggal Wawancara</span>
-                </div>
-                <div className="flex justify-end">
+              <div className="flex items-center justify-between py-4 border-b border-slate-200">
+                <span className="text-sm font-medium text-slate-700">Date</span>
+                <div className="relative">
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full max-w-[240px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                    required
+                    placeholder="Select Date"
+                    className="w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border border-slate-300 text-slate-700 bg-[#f8fafc] text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Row 2: Time */}
-              <div className="grid grid-cols-2 items-center px-6 py-3.5 border-b border-slate-200">
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Waktu (WIB)</span>
-                </div>
-                <div className="flex justify-end items-center gap-2">
+              {/* Row 2: Time (two separate rounded input boxes: [ 00 ] [ 00 ]) */}
+              <div className="flex items-center justify-between py-4 border-b border-slate-200">
+                <span className="text-sm font-medium text-slate-700">Time</span>
+                <div className="flex items-center gap-3">
                   <input
-                    type="number"
-                    min="0"
-                    max="23"
+                    type="text"
+                    maxLength={2}
                     value={hour}
-                    onChange={(e) => setHour(e.target.value.padStart(2, '0').slice(-2))}
-                    className="w-14 px-2 py-1.5 rounded-xl border border-slate-400 text-center font-bold text-slate-800 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs"
+                    onChange={(e) => setHour(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    placeholder="00"
+                    className="w-16 h-10 px-2 rounded-2xl border border-slate-400 text-center font-normal text-slate-700 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs"
                   />
-                  <span className="font-bold text-slate-400">:</span>
                   <input
-                    type="number"
-                    min="0"
-                    max="59"
+                    type="text"
+                    maxLength={2}
                     value={minute}
-                    onChange={(e) => setMinute(e.target.value.padStart(2, '0').slice(-2))}
-                    className="w-14 px-2 py-1.5 rounded-xl border border-slate-400 text-center font-bold text-slate-800 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs"
+                    onChange={(e) => setMinute(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    placeholder="00"
+                    className="w-16 h-10 px-2 rounded-2xl border border-slate-400 text-center font-normal text-slate-700 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs"
                   />
-                  <span className="text-xs font-semibold text-slate-500 ml-1">WIB</span>
                 </div>
               </div>
 
-              {/* Dynamic Rows based on scheduleType */}
-              {scheduleType === 'online' ? (
-                /* Online: Meet Link */
-                <div className="grid grid-cols-2 items-center px-6 py-3.5">
-                  <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <Video className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Tautan Video Call (Link)</span>
-                  </div>
-                  <div className="flex justify-end">
-                    <input
-                      type="url"
-                      value={meetLink}
-                      onChange={(e) => setMeetLink(e.target.value)}
-                      placeholder="https://meet.google.com/..."
-                      className="w-full max-w-[240px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                      required
-                    />
+              {/* Row 3: Location (Onsite) OR Link (Online) */}
+              {scheduleType === 'onsite' ? (
+                /* Onsite: Location Dropdown with Andima branch offices */
+                <div className="flex items-center justify-between py-4 relative">
+                  <span className="text-sm font-medium text-slate-700">Location</span>
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setLocationDropdownOpen((prev) => !prev)}
+                      className="w-[200px] sm:w-[240px] px-4 py-2 rounded-xl border border-slate-400 bg-white text-slate-700 text-xs font-medium flex items-center justify-between shadow-xs hover:border-slate-500 transition-colors cursor-pointer"
+                    >
+                      <span className={locationAddress ? 'text-slate-800 font-semibold' : 'text-slate-400 font-normal'}>
+                        {locationAddress || 'Select Location'}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-500 transition-transform ${
+                          locationDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {locationDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-[200px] sm:w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocationAddress('');
+                            setLocationDropdownOpen(false);
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-400 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Select Location
+                        </button>
+                        {ANDIMA_BRANCHES.map((branch) => (
+                          <button
+                            key={branch}
+                            type="button"
+                            onClick={() => {
+                              setLocationAddress(branch);
+                              setLocationDropdownOpen(false);
+                            }}
+                            className={`w-full px-4 py-2.5 text-left text-xs font-bold transition-colors cursor-pointer ${
+                              locationAddress === branch ? 'bg-[#d9dfe8] text-slate-900' : 'text-slate-800 hover:bg-slate-100'
+                            }`}
+                          >
+                            {branch}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
-                /* Onsite: Location, Room, and Contact Person */
-                <>
-                  <div className="grid grid-cols-2 items-center px-6 py-3.5 border-b border-slate-200">
-                    <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Alamat Pool / Kantor</span>
-                    </div>
-                    <div className="flex justify-end">
-                      <input
-                        type="text"
-                        value={locationAddress}
-                        onChange={(e) => setLocationAddress(e.target.value)}
-                        placeholder="Contoh: Pool Cakung, Jl. Raya Bekasi"
-                        className="w-full max-w-[240px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                        required
-                      />
-                    </div>
+                /* Online: Input Link with placeholder "input link" and empty default value */
+                <div className="flex items-center justify-between py-4">
+                  <span className="text-sm font-medium text-slate-700">Link Meeting</span>
+                  <div>
+                    <input
+                      type="text"
+                      value={meetLink}
+                      onChange={(e) => setMeetLink(e.target.value)}
+                      placeholder="Input link"
+                      className="w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 placeholder:font-sans"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-2 items-center px-6 py-3.5 border-b border-slate-200">
-                    <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Building className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Ruangan Wawancara</span>
-                    </div>
-                    <div className="flex justify-end">
-                      <input
-                        type="text"
-                        value={roomName}
-                        onChange={(e) => setRoomName(e.target.value)}
-                        placeholder="Contoh: Ruang Rapat B Lantai 2"
-                        className="w-full max-w-[240px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 items-center px-6 py-3.5">
-                    <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>PIC Lapangan yang Ditemui</span>
-                    </div>
-                    <div className="flex justify-end">
-                      <input
-                        type="text"
-                        value={contactPerson}
-                        onChange={(e) => setContactPerson(e.target.value)}
-                        placeholder="Nama & No HP PIC"
-                        className="w-full max-w-[240px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                  </div>
-                </>
+                </div>
               )}
             </div>
 
-            {/* Bottom Actions */}
-            <div className="pt-2 flex items-center justify-end gap-3">
+            {/* Bottom Actions: Cancel & Send buttons matching screenshot */}
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
+                className="px-5 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl bg-[#0F2342] hover:bg-blue-900 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                className="px-6 py-2 rounded-xl bg-[#1d64f2] hover:bg-blue-700 text-white text-sm font-semibold shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Menyimpan...</span>
+                    <span>Sending...</span>
                   </>
                 ) : (
-                  <span>{isEditMode ? 'Simpan Perubahan Jadwal' : 'Jadwalkan & Kirim Email'}</span>
+                  <span>Send</span>
                 )}
               </button>
             </div>

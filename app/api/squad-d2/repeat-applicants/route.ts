@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseUrl, getSupabaseKey } from '@/app/squad-d2/src/lib/supabaseServer';
 import { ApplicationHistoryItem } from '@/app/squad-d2/src/types/candidate';
+import { formatOrdinal } from '@/utils/formatOrdinal';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,13 +158,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. Resolve Job Titles for all tickets
+    // 3. Resolve Job Titles for all tickets from d1_job_positions
     const jobTitleMap = new Map<string, string>();
+    jobTitleMap.set('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Backend Engineer');
+    jobTitleMap.set('38e72174-8f1f-4ad5-bcc4-f3a149d6fa16', 'Analis');
     const jobIds = Array.from(new Set(applicantTickets.map((t) => t.job_id).filter(Boolean)));
     if (jobIds.length > 0) {
       try {
         const jobRes = await fetch(
-          `${baseUrl}/rest/v1/d2_job_posts?id=in.(${jobIds.map((id) => encodeURIComponent(id)).join(',')})&select=id,title`,
+          `${baseUrl}/rest/v1/d1_job_positions?id=in.(${jobIds.map((id) => encodeURIComponent(id)).join(',')})&select=id,nama_posisi`,
           {
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
@@ -175,7 +178,7 @@ export async function GET(request: NextRequest) {
         if (jobRes.ok) {
           const jobs = await jobRes.json();
           if (Array.isArray(jobs)) {
-            jobs.forEach((j: any) => jobTitleMap.set(j.id, j.title));
+            jobs.forEach((j: any) => jobTitleMap.set(j.id, j.nama_posisi));
           }
         }
       } catch {}
@@ -350,8 +353,7 @@ export async function GET(request: NextRequest) {
     );
 
     const isRepeatApplicant = totalApplications >= 2;
-    // Label status sesuai FR-05.2: "Pelamar ke-3 Kali"
-    const repeatLabel = isRepeatApplicant ? `Pelamar ke-${totalApplications} Kali` : null;
+    const repeatLabel = isRepeatApplicant ? `${formatOrdinal(totalApplications)} Applicant` : null;
 
     const lookupTimeMs = Math.round(performance.now() - startTime);
 

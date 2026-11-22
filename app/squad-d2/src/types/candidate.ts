@@ -76,11 +76,6 @@ export interface Candidate {
 }
 
 export interface CandidateWithJob extends Candidate {
-  d2_job_posts?: {
-    id?: string;
-    title: string;
-    department?: string;
-  } | null;
   job_title?: string;
   parallel_applications_count?: number;
 }
@@ -92,6 +87,7 @@ export interface FitProperRequirement {
   candidate_id: string;
   name: string;
   status: RequirementStatus;
+  percentage?: number;
   is_deleted: boolean;
   created_at: string;
 }

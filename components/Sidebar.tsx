@@ -306,11 +306,11 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                       />
 
                       {/* Evaluasi Kualifikasi (Fit & Proper) - Akses Utama HR Manager */}
-                      {(account.role || '').toLowerCase().includes('manager') ? (
+                      {/*(account.role || '').toLowerCase().includes('manager') ? (
                         <HrmsLink label="Evaluasi Kualifikasi (Fit & Proper)" href="/fit-proper" />
                       ) : (
                         <HrmsLink label="Pratinjau Kualifikasi (Fit & Proper)" href="/fit-proper" />
-                      )}
+                      )*/}
 
                       {/* Portal Lowongan Kerja */}
                       <HrmsLink label="Portal Lowongan & Jobs" href="/jobs" />

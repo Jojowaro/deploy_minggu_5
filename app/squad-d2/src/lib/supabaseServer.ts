@@ -154,61 +154,10 @@ export async function uploadApplicantCertificate(
 }
 
 /**
- * Ensure the job post ID exists in d2_job_posts so that foreign key constraint
- * on d2_candidates(job_id) is always satisfied.
+ * Helper: no-op placeholder for backward compatibility
  */
-export async function ensureJobPostInD2(jobId: string): Promise<void> {
-  const baseUrl = getSupabaseUrl().replace(/\/$/, '');
-  const supabaseKey = getSupabaseKey();
-
-  try {
-    // 1. Check if already exists in d2_job_posts
-    const checkRes = await fetch(`${baseUrl}/rest/v1/d2_job_posts?id=eq.${encodeURIComponent(jobId)}&select=id`, {
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-      },
-    });
-
-    if (checkRes.ok) {
-      const rows: Array<{ id: string }> = await checkRes.json();
-      if (rows && rows.length > 0) return;
-    }
-
-    // 2. Fetch position details from d1_job_positions
-    const d1Res = await fetch(`${baseUrl}/rest/v1/d1_job_positions?id=eq.${encodeURIComponent(jobId)}&select=*`, {
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-      },
-    });
-
-    if (d1Res.ok) {
-      const d1Rows: any[] = await d1Res.json();
-      if (d1Rows && d1Rows.length > 0) {
-        const p = d1Rows[0];
-        await fetch(`${baseUrl}/rest/v1/d2_job_posts`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseKey}`,
-            'apikey': supabaseKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'resolution=merge-duplicates',
-          },
-          body: JSON.stringify({
-            id: p.id,
-            title: p.nama_posisi,
-            department: p.departemen,
-            location: p.location || 'HQ - Menara MTH',
-            description: p.deskripsi_posisi || '',
-            status: (p.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
-          }),
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[Squad D2 Supabase] ensureJobPostInD2 warning:', err);
-  }
+export async function ensureJobPostInD2(_jobId?: string): Promise<void> {
+  // d2_job_posts removed - all operations now rely purely on d1_job_positions
 }
 
 /**
@@ -233,7 +182,6 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
       if (verifyRes.ok) {
         const matches: Array<{ id: string }> = await verifyRes.json();
         if (matches.length > 0) {
-          await ensureJobPostInD2(matches[0].id);
           return matches[0].id;
         }
       }
@@ -251,7 +199,6 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
     if (res.ok) {
       const rows: Array<{ id: string }> = await res.json();
       if (rows && rows.length > 0) {
-        await ensureJobPostInD2(rows[0].id);
         return rows[0].id;
       }
     }
@@ -259,7 +206,6 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
     console.warn('[Squad D2 Supabase] Job position lookup error, using default active pool ID:', err);
   }
 
-  await ensureJobPostInD2(fallbackJobId);
   return fallbackJobId;
 }
 
@@ -324,13 +270,6 @@ export async function getActiveJobPosts(): Promise<JobPost[]> {
         location: item.location || 'HQ - Menara MTH',
       }));
 
-      // Automatically sync active jobs into d2_job_posts in background for candidate FK safety
-      mapped.forEach((job) => {
-        if (!job.isPlaceholder && job.title !== 'XXX') {
-          ensureJobPostInD2(job.id).catch(() => {});
-        }
-      });
-
       // Append coming soon placeholder card if not present
       if (!mapped.some((j) => j.isPlaceholder || j.title === 'XXX')) {
         mapped.push({
@@ -394,8 +333,6 @@ export async function getJobPostById(id: string): Promise<JobPost | null> {
           location: item.location || 'HQ - Menara MTH',
         };
 
-        // Ensure synced into d2_job_posts
-        ensureJobPostInD2(job.id).catch(() => {});
         return job;
       }
     }
@@ -418,11 +355,6 @@ export async function insertCandidate(
   const endpoint = `${baseUrl}/rest/v1/d2_candidates`;
 
   try {
-    // Ensure foreign key constraint is satisfied in d2_job_posts
-    if (payload.job_id) {
-      await ensureJobPostInD2(payload.job_id);
-    }
-
     // Prepare safe payload conforming to d2_candidates schema
     const safePayload: Record<string, any> = {
       job_id: payload.job_id,
@@ -510,8 +442,8 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
   const startTime = Date.now();
 
   try {
-    // 1. Fetch candidates and d2_job_posts fallback
-    const candUrl = `${baseUrl}/rest/v1/d2_candidates?select=*,d2_job_posts(title)&order=created_at.desc`;
+    // 1. Fetch candidates from d2_candidates
+    const candUrl = `${baseUrl}/rest/v1/d2_candidates?select=*&order=created_at.desc`;
     const candPromise = fetch(candUrl, {
       method: 'GET',
       headers: {
@@ -642,7 +574,7 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
 
     return validCandRows.map((row) => {
         const d1Pos = posMap.get(row.job_id);
-        const title = d1Pos?.nama_posisi || row.d2_job_posts?.title || 'Unknown Position';
+        const title = d1Pos?.nama_posisi || 'Unknown Position';
         const department = d1Pos?.departemen || 'Operations';
         const em = (row.email || '').toLowerCase().trim();
         const nk = (row.nik || '').trim();
@@ -696,11 +628,6 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
           portfolio_url: extractedPortfolio,
           job_title: title,
           skills_tagged: evaluatedSet.has(row.id),
-          d2_job_posts: {
-            id: row.job_id,
-            title: title,
-            department: department,
-          },
           application_count: realTimeAppCount,
           parallel_applications_count: parallelCount,
         };
@@ -765,6 +692,35 @@ export async function updateCandidateStatusAndLog(params: {
       patchPayload.rejection_reason = 'Kandidat belum memenuhi kualifikasi standar.';
     }
 
+    if (newStatus === 'rejected') {
+      patchPayload.rejected_at_stage = rejectedAtStage || oldStatus || 'screening';
+    }
+
+    // Auto-generate User ID and map employment tier if candidate is accepted / converted to employee
+    let mappedTier = employeeTier;
+    if (employeeTier === 'probationary_staff') mappedTier = 'probation';
+    if (employeeTier === 'permanent' || employeeTier === 'contract') mappedTier = 'contract_permanent';
+    if (!mappedTier) mappedTier = 'trainee';
+
+    let resolvedUserId = employeeId?.trim();
+    if (!resolvedUserId && (newStatus === 'offered' || newStatus === 'hired')) {
+      const year = new Date().getFullYear();
+      let prefix = 'TRN';
+      if (mappedTier === 'associate_trainee') prefix = 'AST';
+      if (mappedTier === 'probation') prefix = 'PRB';
+      if (mappedTier === 'contract_permanent') prefix = 'EMP';
+      const randomSuffix = Math.floor(100 + Math.random() * 900);
+      resolvedUserId = `ANDIMA-${year}-${prefix}-${randomSuffix}`;
+    }
+
+    if (newStatus === 'offered' || newStatus === 'hired' || employeeId || employeeTier) {
+      patchPayload.final_status = 'accepted';
+      patchPayload.employee_tier = employeeTier || 'trainee';
+      if (resolvedUserId) {
+        patchPayload.employee_id = resolvedUserId;
+      }
+    }
+
     // Save interview schedule if interview details are specified (Section 3B)
     if (interviewDetails && (newStatus === 'interview' || newStatus === 'interviewed')) {
       const schedulePayload = {
@@ -789,7 +745,7 @@ export async function updateCandidateStatusAndLog(params: {
     }
 
     // 1. Prepare PATCH request for candidate record in d2_candidates
-    const patchUrl = `${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=*,d2_job_posts(title)`;
+    const patchUrl = `${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=*`;
     const patchPromise = fetch(patchUrl, {
       method: 'PATCH',
       headers: {
@@ -837,7 +793,7 @@ export async function updateCandidateStatusAndLog(params: {
     }
 
     const updatedRows: any[] = await patchRes.json();
-    const resolvedTitle = jobTitle || updatedRows[0]?.d2_job_posts?.title || 'Backend Engineer';
+    const resolvedTitle = jobTitle || 'Backend Engineer';
     const updatedCandidate: CandidateWithJob = updatedRows[0]
       ? {
           ...updatedRows[0],
@@ -902,6 +858,90 @@ export async function updateCandidateStatusAndLog(params: {
         }
       } catch (histErr) {
         console.warn('[Squad D2 Supabase] Warning: Failed to record rejection into d2_application_history:', histErr);
+      }
+    }
+
+    // 3b. Record Accepted Employee into d2_application_history (populates view d2_accepted_employees)
+    if (newStatus === 'offered' || newStatus === 'hired' || employeeId || employeeTier) {
+      try {
+        const histEmail = updatedCandidate?.email || '';
+        const histName = updatedCandidate?.full_name || '';
+        const histJobTitle = resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer';
+
+        const acceptedPayload = {
+          candidate_id: candidateId,
+          email: histEmail,
+          nik: updatedCandidate?.nik || null,
+          full_name: histName,
+          job_id: updatedCandidate?.job_id || null,
+          job_title: histJobTitle,
+          application_date: nowIso,
+          application_round: updatedCandidate?.application_count || 1,
+          status: 'accepted',
+          employment_type: mappedTier,
+          generated_user_id: resolvedUserId,
+          accepted_at: nowIso,
+          assessment_score: null,
+          assessment_notes: reason || `Resmi diterima menjadi karyawan (${mappedTier}) dengan User ID: ${resolvedUserId}`,
+          rejection_reason: null,
+          is_read_only: true,
+          is_deleted: false,
+        };
+
+        // Check if an application history record already exists for this candidate
+        const checkRes = await fetch(`${baseUrl}/rest/v1/d2_application_history?candidate_id=eq.${encodeURIComponent(candidateId)}&order=application_date.desc&limit=1`, {
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'apikey': supabaseKey,
+          },
+          cache: 'no-store',
+        });
+        const existingRecords = checkRes.ok ? await checkRes.json() : [];
+
+        if (Array.isArray(existingRecords) && existingRecords.length > 0) {
+          // Update existing record with accepted status, employment type, generated user ID, and timestamp
+          await fetch(`${baseUrl}/rest/v1/d2_application_history?id=eq.${encodeURIComponent(existingRecords[0].id)}`, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'apikey': supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: 'accepted',
+              employment_type: mappedTier,
+              generated_user_id: resolvedUserId,
+              accepted_at: nowIso,
+              assessment_notes: reason || `Resmi diterima menjadi karyawan (${mappedTier}) dengan User ID: ${resolvedUserId}`,
+            }),
+          });
+        } else {
+          // Insert new application record for candidate
+          const postAcceptedRes = await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'apikey': supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(acceptedPayload),
+          });
+
+          if (!postAcceptedRes.ok) {
+            // Fallback if FK constraint on job_id fails
+            await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'apikey': supabaseKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ ...acceptedPayload, job_id: null }),
+            });
+          }
+        }
+      } catch (acceptErr) {
+        console.warn('[Squad D2 Supabase] Warning: Failed to record accepted employee into d2_application_history:', acceptErr);
       }
     }
 

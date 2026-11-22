@@ -21,6 +21,7 @@ import {
 import { CandidateWithJob, CandidateStatus, AuditLog } from '@/app/squad-d2/src/types/candidate';
 import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
 import { getAuditLogsAction } from '@/app/squad-d2/src/app/kanban/actions';
+import { formatOrdinal } from '@/utils/formatOrdinal';
 
 export interface CandidateDetailModalProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const currentColumn = getColumnConfig(candidate.status);
   const applicationCount = repeatInfo?.count || candidate.application_count || 1;
   const isRepeater = applicationCount >= 2;
-  const repeatLabel = repeatInfo?.label || `Pelamar ke-${applicationCount} Kali`;
+  const repeatLabel = `${formatOrdinal(applicationCount)} Applicant`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
@@ -112,14 +113,14 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                   {candidate.full_name}
                 </h2>
                 {isRepeater && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#d97706] text-white shadow-2xs">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#b47614] text-white shadow-2xs">
                     {repeatLabel}
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
                 <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                {candidate.job_title || candidate.d2_job_posts?.title || 'Backend Engineer'}
+                {candidate.job_title || 'Backend Engineer'}
               </p>
             </div>
           </div>

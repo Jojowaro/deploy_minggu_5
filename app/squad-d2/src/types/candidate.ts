@@ -26,6 +26,7 @@ export type CandidateStatus =
   | 'interview'
   | 'interviewed'
   | 'offered'
+  | 'accepted'
   | 'hired'
   | 'rejected'
   | 'in_review'

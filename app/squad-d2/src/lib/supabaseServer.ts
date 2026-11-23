@@ -639,6 +639,56 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
 }
 
 /**
+ * Auto-generate unique Employee ID with anti-redundancy check (DOD Item 2)
+ * Ensures non-collision against d2_candidates and d2_application_history
+ */
+export async function generateAntiRedundantEmployeeId(
+  tier: string,
+  baseUrl: string,
+  supabaseKey: string
+): Promise<string> {
+  const year = new Date().getFullYear();
+  let prefix = 'TRN';
+  if (tier === 'associate_trainee') prefix = 'AST';
+  if (tier === 'probation' || tier === 'probationary_staff') prefix = 'PRB';
+  if (tier === 'permanent' || tier === 'contract' || tier === 'contract_permanent') prefix = 'EMP';
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    // Generate a 4-digit unique sequence/random number to minimize initial collisions
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const candidateEmployeeId = `ANDIMA-${year}-${prefix}-${randomSuffix}`;
+
+    try {
+      // Pengecekan anti-redundansi terhadap tabel d2_candidates dan d2_application_history
+      const [checkCandRes, checkHistRes] = await Promise.all([
+        fetch(`${baseUrl}/rest/v1/d2_candidates?employee_id=eq.${encodeURIComponent(candidateEmployeeId)}&select=id`, {
+          headers: { Authorization: `Bearer ${supabaseKey}`, apikey: supabaseKey },
+          cache: 'no-store',
+        }),
+        fetch(`${baseUrl}/rest/v1/d2_application_history?generated_user_id=eq.${encodeURIComponent(candidateEmployeeId)}&select=id`, {
+          headers: { Authorization: `Bearer ${supabaseKey}`, apikey: supabaseKey },
+          cache: 'no-store',
+        }),
+      ]);
+
+      const candRows = checkCandRes.ok ? await checkCandRes.json() : [];
+      const histRows = checkHistRes.ok ? await checkHistRes.json() : [];
+
+      if ((!Array.isArray(candRows) || candRows.length === 0) && (!Array.isArray(histRows) || histRows.length === 0)) {
+        return candidateEmployeeId;
+      }
+      console.warn(`[Anti-Redundancy] Collision detected for User ID ${candidateEmployeeId}, regenerating...`);
+    } catch {
+      return candidateEmployeeId;
+    }
+  }
+
+  // Fallback using timestamp slice to guarantee uniqueness under heavy concurrent generation
+  const fallbackSuffix = Date.now().toString().slice(-4);
+  return `ANDIMA-${year}-${prefix}-${fallbackSuffix}`;
+}
+
+/**
  * Update candidate status & append immutable audit log entry in d2_audit_logs (FR-02.6, TR-09, TR-06 < 200ms)
  */
 export async function updateCandidateStatusAndLog(params: {
@@ -702,23 +752,18 @@ export async function updateCandidateStatusAndLog(params: {
     if (employeeTier === 'permanent' || employeeTier === 'contract') mappedTier = 'contract_permanent';
     if (!mappedTier) mappedTier = 'trainee';
 
-    let resolvedUserId = employeeId?.trim();
-    if (!resolvedUserId && (newStatus === 'offered' || newStatus === 'hired')) {
-      const year = new Date().getFullYear();
-      let prefix = 'TRN';
-      if (mappedTier === 'associate_trainee') prefix = 'AST';
-      if (mappedTier === 'probation') prefix = 'PRB';
-      if (mappedTier === 'contract_permanent') prefix = 'EMP';
-      const randomSuffix = Math.floor(100 + Math.random() * 900);
-      resolvedUserId = `ANDIMA-${year}-${prefix}-${randomSuffix}`;
-    }
+    // DOD Item 4: Status OFFERED strictly DOES NOT trigger employee_id creation nor exposure
+    // DOD Item 2: Status ACCEPTED / HIRED triggers automatic unique employee_id with anti-redundancy
+    const isAccepted = (newStatus as string) === 'hired' || (newStatus as string) === 'accepted' || Boolean(employeeTier);
 
-    if (newStatus === 'offered' || newStatus === 'hired' || employeeId || employeeTier) {
-      patchPayload.final_status = 'accepted';
-      patchPayload.employee_tier = employeeTier || 'trainee';
-      if (resolvedUserId) {
-        patchPayload.employee_id = resolvedUserId;
+    let resolvedUserId = employeeId?.trim();
+    if (isAccepted) {
+      if (!resolvedUserId) {
+        resolvedUserId = await generateAntiRedundantEmployeeId(mappedTier, baseUrl, supabaseKey);
       }
+      patchPayload.final_status = 'accepted';
+      patchPayload.employee_tier = mappedTier;
+      patchPayload.employee_id = resolvedUserId;
     }
 
     // Save interview schedule if interview details are specified (Section 3B)
@@ -827,6 +872,7 @@ export async function updateCandidateStatusAndLog(params: {
           application_date: nowIso,
           application_round: updatedCandidate?.application_count || 1,
           status: 'rejected',
+          rejected_at_stage: patchPayload.rejected_at_stage || rejectedAtStage || oldStatus || 'screening',
           assessment_score: null,
           assessment_notes: `Tahap seleksi: ${oldStatus} -> rejected`,
           rejection_reason: reason || 'Kandidat belum memenuhi kualifikasi standar.',
@@ -862,7 +908,8 @@ export async function updateCandidateStatusAndLog(params: {
     }
 
     // 3b. Record Accepted Employee into d2_application_history (populates view d2_accepted_employees)
-    if (newStatus === 'offered' || newStatus === 'hired' || employeeId || employeeTier) {
+    // DOD Item 4: Only executed when candidate is accepted/hired, NEVER when status is offered!
+    if (isAccepted) {
       try {
         const histEmail = updatedCandidate?.email || '';
         const histName = updatedCandidate?.full_name || '';

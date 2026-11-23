@@ -45,11 +45,16 @@ FROM public.d2_application_history app
 INNER JOIN public.d2_candidates cand ON app.candidate_id = cand.id
 WHERE LOWER(app.status) = 'accepted';
 
--- 3. Alias view tunggal: d2_accepted_employee
+-- 3. Alias view: v_d2_accepted_employees (DOD Item 5) & d2_accepted_employee
+CREATE OR REPLACE VIEW public.v_d2_accepted_employees
+WITH (security_invoker = true) AS
+SELECT * FROM public.d2_accepted_employees;
+
 CREATE OR REPLACE VIEW public.d2_accepted_employee
 WITH (security_invoker = true) AS
 SELECT * FROM public.d2_accepted_employees;
 
 -- 4. Berikan izin SELECT ke roles
 GRANT SELECT ON public.d2_accepted_employees TO anon, authenticated, service_role;
+GRANT SELECT ON public.v_d2_accepted_employees TO anon, authenticated, service_role;
 GRANT SELECT ON public.d2_accepted_employee TO anon, authenticated, service_role;

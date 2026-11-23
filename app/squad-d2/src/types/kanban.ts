@@ -114,6 +114,7 @@ export function mapStatusToStage(status: CandidateStatus | string): CandidateSta
     case 'offered':
       return 'offering';
     case 'hired':
+    case 'accepted':
       return 'hired';
     case 'rejected':
       return 'rejected';

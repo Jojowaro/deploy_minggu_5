@@ -52,18 +52,18 @@ function getTransporter() {
 function getStatusBadgeColor(status: string): { bg: string; text: string; label: string } {
   switch (status.toLowerCase()) {
     case 'applied':
-      return { bg: '#3b82f6', text: '#ffffff', label: 'Candidate (Pool Pelamar)' };
+      return { bg: '#3B6FF5', text: '#ffffff', label: 'Candidate (Pool Pelamar)' };
     case 'assessment':
-      return { bg: '#f59e0b', text: '#ffffff', label: 'Screening (Penyaringan Berkas)' };
+      return { bg: '#D99A18', text: '#ffffff', label: 'Screening (Penyaringan Berkas)' };
     case 'interview':
     case 'interviewed':
-      return { bg: '#8b5cf6', text: '#ffffff', label: 'Interviewed (Wawancara)' };
+      return { bg: '#C94FEA', text: '#ffffff', label: 'Interviewed (Wawancara)' };
     case 'offered':
-      return { bg: '#10b981', text: '#ffffff', label: 'Offered (Penawaran Kerja)' };
+      return { bg: '#18C7C0', text: '#ffffff', label: 'Offered (Penawaran Kerja)' };
     case 'hired':
       return { bg: '#047857', text: '#ffffff', label: 'Hired (Karyawan Resmi)' };
     case 'rejected':
-      return { bg: '#ef4444', text: '#ffffff', label: 'Rejected' };
+      return { bg: '#D9364F', text: '#ffffff', label: 'Rejected' };
     default:
       return { bg: '#64748b', text: '#ffffff', label: status.toUpperCase() };
   }

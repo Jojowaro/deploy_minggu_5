@@ -298,7 +298,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
 
         {/* 2. Qualification Pill (Fit & Proper Preview) */}
         {isQualified && (
-          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold tracking-wider bg-[#1ba86c] text-white shadow-xs inline-flex items-center justify-center text-center">
+          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold tracking-wider bg-[#16A37A] text-white shadow-xs inline-flex items-center justify-center text-center">
             Qualified
           </span>
         )}
@@ -311,14 +311,14 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
 
         {/* 3. History Badges (FR-D2-005 FR-05.2) */}
         {isRepeater && (
-          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold bg-[#b47614] text-white shadow-xs inline-flex items-center justify-center text-center">
+          <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold bg-[#5D2B2BCC] text-white shadow-xs inline-flex items-center justify-center text-center">
             {formatOrdinal(candidate.application_count || 2)} Applicant
           </span>
         )}
 
         {/* 4. Multi-Posisi Parallel Application Badge (Section 3D) */}
         {hasParallelApplications && (
-          <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs inline-flex items-center justify-center text-center">
+          <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-indigo-800 text-white border inline-flex items-center justify-center text-center">
             Multi-Posisi ({candidate.parallel_applications_count})
           </span>
         )}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Menu, LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { getAuthenticatedUserProfile, UserProfile } from '@/utils/auth';
 
@@ -26,11 +26,41 @@ export const Header: React.FC<HeaderProps> = ({
   notificationCount = 3,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [language, setLanguage] = useState<'EN' | 'ID'>('EN');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic path label resolution according to current route
+  const getPathLabel = () => {
+    if (pathname?.includes('/kanban')) {
+      return 'Recruitment Pipeline';
+    }
+    if (pathname?.includes('/fit-proper')) {
+      return 'Fit & Proper';
+    }
+    if (
+      pathname?.includes('/job') ||
+      pathname?.includes('/register') ||
+      pathname?.includes('/registration-form')
+    ) {
+      return 'Job List & Register';
+    }
+    return badgeTitle || 'Recruitment Pipeline';
+  };
+
+  const pathLabel = getPathLabel();
+
+  const handleToggleSidebar = () => {
+    if (onMenuClick) {
+      onMenuClick();
+    } else {
+      window.dispatchEvent(new Event('toggle-sidebar'));
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -98,30 +128,57 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="h-16 border-b border-slate-200/90 bg-white sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 md:px-8 shadow-xs">
-      {/* Sisi Kiri: Tombol drawer mobile (jika ada) + Judul Brand & Sub-kategori */}
+      {/* Sisi Kiri: Tombol Hamburger #3B6FF5 + Separator + HRMS / Path */}
       <div className="flex items-center gap-3">
-        {onMenuClick && (
-          <button
-            type="button"
-            onClick={onMenuClick}
-            className="p-1.5 -ml-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors lg:hidden cursor-pointer"
-            aria-label="Buka navigasi"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        )}
-        <div className="flex items-center gap-2.5">
-          <span className="text-xs sm:text-sm font-bold tracking-tight text-slate-900">
-            {brandTitle}
-          </span>
-          <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 pl-2.5 border-l border-slate-300">
-            {badgeTitle}
-          </span>
+        <button
+          type="button"
+          onClick={handleToggleSidebar}
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#3B6FF5] hover:bg-[#2b5fe8] active:scale-95 flex items-center justify-center text-white shadow-xs cursor-pointer transition-all shrink-0"
+          aria-label="Toggle Navigasi"
+          title="Buka/Tutup Navigasi"
+        >
+          <Menu className="w-5 h-5 text-white" strokeWidth={2.4} />
+        </button>
+
+        {/* Separator Garis Vertikal */}
+        <div className="h-4.5 w-[1.5px] bg-slate-300 mx-0.5" />
+
+        {/* Breadcrumb Path: HRMS / Path */}
+        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold select-none">
+          <span className="text-slate-700">HRMS</span>
+          <span className="text-slate-400 font-normal">/</span>
+          <span className="text-slate-900 font-bold tracking-tight">{pathLabel}</span>
         </div>
       </div>
 
-      {/* Sisi Kanan: Notifikasi (Bell 3) + Garis Pemisah + Profil Pengguna Dinamis */}
+      {/* Sisi Kanan: Toggle Bahasa (EN/ID) + Notifikasi (Bell 3) + Garis Pemisah + Profil Pengguna Dinamis */}
       <div className="flex items-center gap-3 sm:gap-4">
+        {/* Toggle Bahasa (EN / ID) matching design */}
+        <div className="flex items-center bg-[#eef2f6] border border-slate-200/80 rounded-full p-1 select-none shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setLanguage('EN')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              language === 'EN'
+                ? 'bg-white text-[#3B6FF5] shadow-xs'
+                : 'text-slate-500 hover:text-slate-800 bg-transparent'
+            }`}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage('ID')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              language === 'ID'
+                ? 'bg-white text-[#3B6FF5] shadow-xs'
+                : 'text-slate-500 hover:text-slate-800 bg-transparent'
+            }`}
+          >
+            ID
+          </button>
+        </div>
+
         {/* Notifikasi Bell dengan badge merah */}
         <div
           className="relative p-1 text-slate-500 hover:text-slate-700 cursor-pointer transition-colors"

@@ -974,7 +974,7 @@ function FitProperContent() {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800 font-sans antialiased w-full">
       {/* Top Navbar Header */}
-      <Header onMenuClick={() => window.dispatchEvent(new Event('open-sidebar'))} />
+      <Header onMenuClick={() => window.dispatchEvent(new Event('toggle-sidebar'))} />
 
       {/* Main Container */}
       <main className="flex-1 px-4 sm:px-6 md:px-8 lg:px-12 py-6 w-full max-w-[1400px] mx-auto flex flex-col">

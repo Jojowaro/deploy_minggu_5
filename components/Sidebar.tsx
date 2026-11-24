@@ -209,11 +209,17 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsSidebarOpen(window.innerWidth >= 1024);
+    }
+    const handleToggle = () => setIsSidebarOpen((prev) => !prev);
     const handleOpen = () => setIsSidebarOpen(true);
     const handleClose = () => setIsSidebarOpen(false);
+    window.addEventListener("toggle-sidebar", handleToggle);
     window.addEventListener("open-sidebar", handleOpen);
     window.addEventListener("close-sidebar", handleClose);
     return () => {
+      window.removeEventListener("toggle-sidebar", handleToggle);
       window.removeEventListener("open-sidebar", handleOpen);
       window.removeEventListener("close-sidebar", handleClose);
     };
@@ -231,7 +237,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#0f2342] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#0f2342] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform duration-300 ease-in-out ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

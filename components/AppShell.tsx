@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/utils/supabase/client";
@@ -9,6 +9,24 @@ import { createClient } from "@/utils/supabase/client";
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsSidebarOpen(window.innerWidth >= 1024);
+    }
+    const handleToggle = () => setIsSidebarOpen((prev) => !prev);
+    const handleOpen = () => setIsSidebarOpen(true);
+    const handleClose = () => setIsSidebarOpen(false);
+    window.addEventListener("toggle-sidebar", handleToggle);
+    window.addEventListener("open-sidebar", handleOpen);
+    window.addEventListener("close-sidebar", handleClose);
+    return () => {
+      window.removeEventListener("toggle-sidebar", handleToggle);
+      window.removeEventListener("open-sidebar", handleOpen);
+      window.removeEventListener("close-sidebar", handleClose);
+    };
+  }, []);
 
   // Routes that do NOT require authentication redirect (Public: Jobs & Registration Form & Login)
   const isNoAuthRoute =
@@ -82,7 +100,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <>
       <Sidebar />
-      <div className="min-h-full lg:pl-[260px] flex flex-col">{children}</div>
+      <div className={`min-h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "lg:pl-[260px]" : "lg:pl-0"}`}>{children}</div>
     </>
   );
 }

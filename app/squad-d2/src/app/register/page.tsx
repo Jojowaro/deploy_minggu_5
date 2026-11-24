@@ -78,6 +78,41 @@ function RegistrationFormContent() {
   const portfolioId = useId();
   const skillsId = useId();
 
+  // Real-time email validation helper for onChange and onBlur
+  const validateEmailFormat = (val: string, isBlur: boolean = false) => {
+    const trimmed = val.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!trimmed) {
+      if (isBlur) {
+        setClientErrors((prev) => ({
+          ...prev,
+          email: 'Email must be filled!',
+        }));
+      } else {
+        setClientErrors((prev) => {
+          const next = { ...prev };
+          delete next.email;
+          return next;
+        });
+      }
+      return;
+    }
+
+    if (!emailRegex.test(trimmed)) {
+      setClientErrors((prev) => ({
+        ...prev,
+        email: 'Invalid email format (example: name@domain.com).',
+      }));
+    } else {
+      setClientErrors((prev) => {
+        const next = { ...prev };
+        delete next.email;
+        return next;
+      });
+    }
+  };
+
   // Helper to count words (split by whitespace)
   const countWords = (text: string): number => {
     const trimmed = text.trim();
@@ -599,14 +634,12 @@ function RegistrationFormContent() {
                   type="email"
                   value={email}
                   onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (clientErrors.email) {
-                      setClientErrors((prev) => {
-                        const n = { ...prev };
-                        delete n.email;
-                        return n;
-                      });
-                    }
+                    const val = e.target.value;
+                    setEmail(val);
+                    validateEmailFormat(val, false);
+                  }}
+                  onBlur={(e) => {
+                    validateEmailFormat(e.target.value, true);
                   }}
                   placeholder="Enter Email"
                   className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"

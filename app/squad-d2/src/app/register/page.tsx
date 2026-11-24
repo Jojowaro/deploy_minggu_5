@@ -260,7 +260,46 @@ function RegistrationFormContent() {
     }
 
     setClientErrors(errors);
-    return Object.keys(errors).length === 0;
+    if (Object.keys(errors).length > 0) {
+      scrollToFirstError(errors);
+      return false;
+    }
+    return true;
+  };
+
+  const FIELD_ORDER = [
+    'fullName',
+    'email',
+    'nik',
+    'phoneNumber',
+    'socialMedia',
+    'portfolioUrl',
+    'skills',
+    'cvFile',
+    'certificateFile',
+    'registrationWay',
+  ] as const;
+
+  const scrollToFirstError = (errors: Record<string, string>) => {
+    const firstErrorKey = FIELD_ORDER.find((key) => Boolean(errors[key]));
+    if (!firstErrorKey) return;
+
+    setTimeout(() => {
+      const element = document.getElementById(`field-${firstErrorKey}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const focusable = element.querySelector(
+          'input:not([type="hidden"]):not([type="file"]), textarea'
+        ) as HTMLElement | null;
+        if (
+          focusable &&
+          !focusable.classList.contains('hidden') &&
+          !focusable.classList.contains('sr-only')
+        ) {
+          focusable.focus({ preventScroll: true });
+        }
+      }
+    }, 60);
   };
 
   const handleFileChange = (file: File | null) => {
@@ -600,7 +639,7 @@ function RegistrationFormContent() {
         <div className="w-full bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8 md:p-10">
           <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-6 sm:space-y-7 w-full">
             {/* FIELD 1: FULL NAME */}
-            <div className="w-full">
+            <div id="field-fullName" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={fullNameId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
@@ -642,7 +681,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* FIELD 2: EMAIL */}
-            <div className="w-full">
+            <div id="field-email" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={emailId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
@@ -682,7 +721,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* FIELD 3: NIK */}
-            <div className="w-full">
+            <div id="field-nik" className="w-full scroll-mt-28">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
@@ -729,7 +768,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* FIELD 4: PHONE NUMBER (Must Filled!) */}
-            <div className="w-full">
+            <div id="field-phoneNumber" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={phoneId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
@@ -771,7 +810,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* FIELD 5: SOCIAL MEDIA ACCOUNTS (Dynamic per-platform) */}
-            <div className="w-full">
+            <div id="field-socialMedia" className="w-full scroll-mt-28">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
@@ -920,7 +959,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* FIELD 6: SKILL PORTOFOLIO LINK (e.g GITHUB, BEHANCE) */}
-            <div className="w-full">
+            <div id="field-portfolioUrl" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={portfolioId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
@@ -962,7 +1001,7 @@ function RegistrationFormContent() {
             </div>
 
             {/* FIELD 7: SKILL DESCRIPTION (Must filled, Max 20 Words!) */}
-            <div className="w-full">
+            <div id="field-skills" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label htmlFor={skillsId} className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
@@ -1018,7 +1057,7 @@ function RegistrationFormContent() {
             {/* ================================================================= */}
             {/* FIELD 8: CURRICULUM VITAE (PDF) - FULL WIDTH DROPZONE             */}
             {/* ================================================================= */}
-            <div className="w-full">
+            <div id="field-cvFile" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">
@@ -1117,7 +1156,7 @@ function RegistrationFormContent() {
             {/* ================================================================= */}
             {/* FIELD 9: CERTIFICATE (PDF) - OPTIONAL DROPZONE                    */}
             {/* ================================================================= */}
-            <div className="w-full">
+            <div id="field-certificateFile" className="w-full scroll-mt-28">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
@@ -1219,7 +1258,7 @@ function RegistrationFormContent() {
             {/* ================================================================= */}
             {/* FIELD 10: REGISTRATION WAY (Matching Image 1)                     */}
             {/* ================================================================= */}
-            <div className="pt-1 w-full">
+            <div id="field-registrationWay" className="pt-1 w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-3 h-3 rounded-full bg-[#3b82f6] shrink-0" />
                 <label className="text-sm md:text-[15px] font-bold tracking-wide text-slate-800 uppercase">

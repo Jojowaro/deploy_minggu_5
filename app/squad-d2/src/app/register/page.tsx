@@ -15,6 +15,7 @@ import {
   Check,
   Plus,
   Trash2,
+  ChevronDown,
 } from 'lucide-react';
 import { RegistrationWayUi, JobPost } from '../../types/candidate';
 import Header from '@/components/Header';
@@ -27,15 +28,13 @@ export interface SocialMediaItem {
   handle: string;
 }
 
-const COMMON_PLATFORMS = [
-  'Instagram',
-  'LinkedIn',
-  'TikTok',
-  'GitHub',
+const SOCIAL_MEDIA_OPTIONS = [
+  'Linkedin',
+  'Tiktok',
+  'Youtube',
+  'Github',
   'Twitter / X',
-  'YouTube',
-  'Facebook',
-  'Behance / Dribbble',
+  'Instagram',
   'Other',
 ];
 
@@ -52,8 +51,10 @@ function RegistrationFormContent() {
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [socialMediaList, setSocialMediaList] = useState<SocialMediaItem[]>([
-    { id: 'sm-1', platform: 'Instagram', handle: '' },
+    { id: 'sm-1', platform: 'Select Media Social', handle: '' },
   ]);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const socialDropdownContainerRef = useRef<HTMLDivElement>(null);
   const [portfolioUrl, setPortfolioUrl] = useState('');
   const [skills, setSkills] = useState('');
   const [registrationWay, setRegistrationWay] = useState<RegistrationWayUi>('recommendation');
@@ -121,6 +122,25 @@ function RegistrationFormContent() {
   };
 
   const wordCount = countWords(skills);
+
+  // Handle outside click to close social media dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        openDropdownId &&
+        socialDropdownContainerRef.current &&
+        !socialDropdownContainerRef.current.contains(event.target as Node)
+      ) {
+        setOpenDropdownId(null);
+      }
+    }
+    if (openDropdownId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDropdownId]);
 
   // Find job information via /api/squad-d2/jobs endpoint if jobId is present
   useEffect(() => {
@@ -192,6 +212,13 @@ function RegistrationFormContent() {
     const filledSocialMedias = socialMediaList.filter((s) => s.handle.trim());
     if (filledSocialMedias.length === 0) {
       errors.socialMedia = 'Social Media must be filled!';
+    } else {
+      const hasUnselected = filledSocialMedias.some(
+        (s) => !s.platform || s.platform === 'Select Media Social'
+      );
+      if (hasUnselected) {
+        errors.socialMedia = 'Silakan pilih jenis media sosial untuk akun yang diisi.';
+      }
     }
 
     // Skill Portofolio Link is mandatory
@@ -335,7 +362,7 @@ function RegistrationFormContent() {
       ...prev,
       {
         id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        platform: 'Instagram',
+        platform: 'Select Media Social',
         handle: '',
       },
     ]);
@@ -372,7 +399,7 @@ function RegistrationFormContent() {
     setNik('');
     setEmail('');
     setPhoneNumber('');
-    setSocialMediaList([{ id: 'sm-1', platform: 'Instagram', handle: '' }]);
+    setSocialMediaList([{ id: 'sm-1', platform: 'Select Media Social', handle: '' }]);
     setPortfolioUrl('');
     setSkills('');
     setRegistrationWay('recommendation');
@@ -400,7 +427,7 @@ function RegistrationFormContent() {
     if (!selectedFile) return;
 
     const combinedSocialMedia = socialMediaList
-      .filter((s) => s.handle.trim())
+      .filter((s) => s.handle.trim() && s.platform !== 'Select Media Social')
       .map((s) => `${s.platform}: ${s.handle.trim()}`)
       .join(', ');
 
@@ -663,7 +690,7 @@ function RegistrationFormContent() {
                     NIK*
                   </label>
                 </div>
-                <span className="text-xs text-slate-500 font-medium">Kunci Pendeteksi Sekunder (16 Digit)</span>
+                {/* <span className="text-xs text-slate-500 font-medium">Kunci Pendeteksi Sekunder (16 Digit)</span> */}
               </div>
 
               <div
@@ -752,31 +779,85 @@ function RegistrationFormContent() {
                     SOCIAL MEDIA ACCOUNTS*
                   </label>
                 </div>
-                <span className="text-xs text-slate-500 font-medium">Bisa menambahkan lebih dari 1 akun</span>
+                <span className="text-xs text-slate-500 font-medium">Availabe to add more than one account</span>
               </div>
 
-              <div className="space-y-3">
+              <div ref={socialDropdownContainerRef} className="space-y-3">
                 {socialMediaList.map((item) => (
-                  <div key={item.id} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    {/* Platform Selector */}
-                    <div className="relative w-full sm:w-52 shrink-0">
-                      <select
-                        value={item.platform}
-                        onChange={(e) => updateSocialMediaPlatform(item.id, e.target.value)}
+                  <div
+                    key={item.id}
+                    className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 relative ${
+                      openDropdownId === item.id ? 'z-30' : 'z-10'
+                    }`}
+                  >
+                    {/* Platform Selector with Custom Dropdown matching Image */}
+                    <div className="relative w-full sm:w-56 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenDropdownId((prev) => (prev === item.id ? null : item.id))
+                        }
                         disabled={isPending}
-                        className="w-full h-14 md:h-16 px-4 bg-neutral-100 border border-neutral-700 rounded-2xl text-sm md:text-base font-semibold text-slate-800 focus:outline-none focus:border-blue-600 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] appearance-none cursor-pointer"
+                        className="w-full h-14 md:h-16 px-5 bg-neutral-100 border border-neutral-700 rounded-2xl flex items-center justify-between shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus:outline-none focus:border-blue-600 transition-colors cursor-pointer select-none text-left"
                       >
-                        {COMMON_PLATFORMS.map((plat) => (
-                          <option key={plat} value={plat} className="text-slate-800">
-                            {plat}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
+                        <span
+                          className={
+                            item.platform === 'Select Media Social'
+                              ? 'text-neutral-400 font-normal text-sm md:text-base'
+                              : 'text-slate-800 font-bold text-sm md:text-base'
+                          }
+                        >
+                          {item.platform}
+                        </span>
+                        <ChevronDown
+                          className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${
+                            openDropdownId === item.id ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {/* Dropdown Menu Popup matching reference design */}
+                      {openDropdownId === item.id && (
+                        <div className="absolute left-0 top-full mt-2 w-full min-w-[200px] sm:min-w-[240px] bg-white rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 select-none">
+                          {/* Placeholder / Default Option */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateSocialMediaPlatform(item.id, 'Select Media Social');
+                              setOpenDropdownId(null);
+                            }}
+                            className={`w-full text-left px-5 py-3.5 text-sm md:text-base border-b border-slate-100 transition-colors cursor-pointer ${
+                              item.platform === 'Select Media Social'
+                                ? 'bg-slate-50 text-slate-400 font-medium'
+                                : 'text-slate-400 font-normal hover:bg-slate-50'
+                            }`}
+                          >
+                            Select Media Social
+                          </button>
+
+                          {/* Social Media Options */}
+                          {SOCIAL_MEDIA_OPTIONS.map((plat) => {
+                            const isSelected = item.platform === plat;
+                            return (
+                              <button
+                                key={plat}
+                                type="button"
+                                onClick={() => {
+                                  updateSocialMediaPlatform(item.id, plat);
+                                  setOpenDropdownId(null);
+                                }}
+                                className={`w-full text-left px-5 py-3.5 text-base md:text-lg font-bold border-b border-slate-100 last:border-b-0 transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#d9dfe8] text-[#0f172a]'
+                                    : 'bg-white hover:bg-slate-50 text-[#334155]'
+                                }`}
+                              >
+                                {plat}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Handle or URL Input */}
@@ -791,7 +872,11 @@ function RegistrationFormContent() {
                         type="text"
                         value={item.handle}
                         onChange={(e) => updateSocialMediaHandle(item.id, e.target.value)}
-                        placeholder={`Enter ${item.platform} username or URL (e.g. @username)`}
+                        placeholder={
+                          item.platform && item.platform !== 'Select Media Social'
+                            ? `Enter ${item.platform} username or URL (e.g. @username)`
+                            : 'Enter username or URL (e.g. @username)'
+                        }
                         className="w-full h-14 md:h-16 px-5 bg-transparent text-sm md:text-base font-normal text-slate-800 placeholder:text-neutral-400 focus:outline-none rounded-2xl"
                         disabled={isPending}
                       />
@@ -803,7 +888,7 @@ function RegistrationFormContent() {
                         type="button"
                         onClick={() => removeSocialMedia(item.id)}
                         disabled={isPending}
-                        className="h-14 md:h-16 px-4 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors flex items-center justify-center shrink-0 shadow-2xs"
+                        className="h-14 md:h-16 px-4 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors flex items-center justify-center shrink-0 shadow-2xs cursor-pointer"
                         title="Hapus akun ini"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -821,7 +906,7 @@ function RegistrationFormContent() {
                     className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 px-4 py-2.5 rounded-xl border border-blue-200/80 transition-all shadow-2xs active:scale-[0.98]"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Tambah Akun Sosial Media</span>
+                    <span>Add Sosial Media Account</span>
                   </button>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ChevronDown, AlertCircle } from 'lucide-react';
+import { X, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { CandidateWithJob } from '@/app/squad-d2/src/types/candidate';
 
 export interface InterviewScheduleData {
@@ -27,6 +27,34 @@ export interface TransferEmailModalProps {
 
 const ANDIMA_BRANCHES = ['Jakarta', 'Balikpapan', 'Samarinda', 'Surabaya'];
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const formatDateDisplay = (dateStr: string) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  const monthName = MONTH_NAMES[m - 1] || '';
+  return `${d} ${monthName} ${y}`;
+};
+
 export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   isOpen,
   candidate,
@@ -42,10 +70,20 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   const [meetLink, setMeetLink] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const todayDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const [viewYear, setViewYear] = useState(currentYear);
+  const [viewMonth, setViewMonth] = useState(currentMonth);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -62,7 +100,23 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
     };
   }, [locationDropdownOpen]);
 
+  // Close calendar on outside click
   useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setCalendarOpen(false);
+      }
+    }
+    if (calendarOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [calendarOpen]);
+
+  useEffect(() => {
+    const today = new Date();
     if (initialData) {
       setScheduleType(initialData.scheduleType || 'online');
       setDate(initialData.date || '');
@@ -70,6 +124,19 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
       setMinute(initialData.minute || '00');
       setMeetLink(initialData.meetLink || '');
       setLocationAddress(initialData.locationAddress || '');
+      if (initialData.date) {
+        const parts = initialData.date.split('-');
+        if (parts.length === 3) {
+          setViewYear(parseInt(parts[0], 10));
+          setViewMonth(parseInt(parts[1], 10) - 1);
+        } else {
+          setViewYear(today.getFullYear());
+          setViewMonth(today.getMonth());
+        }
+      } else {
+        setViewYear(today.getFullYear());
+        setViewMonth(today.getMonth());
+      }
     } else {
       setDate('');
       setHour('00');
@@ -77,27 +144,75 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
       setScheduleType('online');
       setMeetLink('');
       setLocationAddress('');
+      setViewYear(today.getFullYear());
+      setViewMonth(today.getMonth());
     }
-    setErrorMsg(null);
+    setErrors({});
     setLocationDropdownOpen(false);
+    setCalendarOpen(false);
   }, [initialData, isOpen]);
+
+  const isPrevDisabled =
+    viewYear < currentYear || (viewYear === currentYear && viewMonth <= currentMonth);
+
+  const handlePrevMonth = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isPrevDisabled) return;
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((prev) => prev - 1);
+    } else {
+      setViewMonth((prev) => prev - 1);
+    }
+  };
+
+  const handleNextMonth = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((prev) => prev + 1);
+    } else {
+      setViewMonth((prev) => prev + 1);
+    }
+  };
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
   if (!isOpen || !candidate) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const newErrors: Record<string, string> = {};
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
     if (!date) {
-      setErrorMsg('Silakan tentukan tanggal wawancara (Select Date).');
-      return;
+      newErrors.date = 'Date must be filled';
+    } else if (date < todayStr) {
+      newErrors.date = 'Tidak bisa memilih hari yang sudah lewat';
+    }
+
+    if (!hour.trim() || !minute.trim()) {
+      newErrors.time = 'Must be filled';
     }
 
     if (scheduleType === 'online' && !meetLink.trim()) {
-      setErrorMsg('Silakan masukkan tautan meet link (input link).');
-      return;
+      newErrors.meetLink = 'Meeting link must be filled';
     }
 
-    if (scheduleType === 'onsite' && (!locationAddress.trim() || locationAddress === 'Select Location')) {
-      setErrorMsg('Silakan pilih lokasi kantor cabang Andima.');
+    if (
+      scheduleType === 'onsite' &&
+      (!locationAddress.trim() || locationAddress === 'Select Location')
+    ) {
+      newErrors.locationAddress = 'Location must be selected';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -114,7 +229,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Gagal menyimpan jadwal interview';
-      setErrorMsg(msg);
+      setErrors({ general: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -146,17 +261,10 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
             INTERVIEW SETTING
           </h2>
 
-          <p className="text-center text-xs text-slate-500 mt-1 mb-4">
+          <p className="text-center text-xs text-slate-500 mt-1 mb-5">
             {isEditMode ? 'Perbarui jadwal interview untuk' : 'Atur jadwal interview untuk'}{' '}
             <strong className="text-slate-800 font-semibold">{candidate.full_name}</strong> ({candidate.job_title || 'Pelamar'})
           </p>
-
-          {errorMsg && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium text-center flex items-center justify-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Tab Pill Switcher (Online vs Onsite per UI screenshot) */}
@@ -164,7 +272,15 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
               <div className="inline-flex p-1 rounded-full bg-slate-100 border border-slate-200 shadow-inner">
                 <button
                   type="button"
-                  onClick={() => setScheduleType('online')}
+                  onClick={() => {
+                    setScheduleType('online');
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.meetLink;
+                      delete next.locationAddress;
+                      return next;
+                    });
+                  }}
                   className={`px-6 py-2 rounded-l-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                     scheduleType === 'online'
                       ? 'bg-[#1E3765] text-white shadow-sm'
@@ -175,7 +291,15 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setScheduleType('onsite')}
+                  onClick={() => {
+                    setScheduleType('onsite');
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.meetLink;
+                      delete next.locationAddress;
+                      return next;
+                    });
+                  }}
                   className={`px-6 py-2 rounded-r-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                     scheduleType === 'onsite'
                       ? 'bg-[#1E3765] text-white shadow-sm'
@@ -190,116 +314,300 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
             {/* Condition & Control Table Container matching Image layout */}
             <div className="bg-[#f0f4f8] rounded-2xl border border-slate-200/90 overflow-visible shadow-xs p-5 sm:p-6 mb-6">
               {/* Header Row: Condition | Control */}
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 font-bold text-slate-800 text-base">
+              {/* <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 font-bold text-slate-800 text-base">
                 <span>Condition</span>
                 <span>Control</span>
-              </div>
+              </div> */}
 
               {/* Row 1: Date */}
-              <div className="flex items-center justify-between py-4 border-b border-slate-200">
-                <span className="text-sm font-medium text-slate-700">Date</span>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    placeholder="Select Date"
-                    className="w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border border-slate-300 text-slate-700 bg-[#f8fafc] text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                  />
+              <div className="flex items-start justify-between py-4 border-b border-slate-200">
+                <span className="text-sm font-medium text-slate-700 pt-2">Date</span>
+                <div className="flex flex-col items-end">
+                  <div className="relative" ref={calendarRef}>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarOpen((prev) => !prev)}
+                      className={`w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border bg-white text-slate-700 text-xs font-semibold flex items-center justify-between shadow-xs transition-colors cursor-pointer ${
+                        errors.date
+                          ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]'
+                          : 'border-slate-300 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
+                      }`}
+                    >
+                      <span className={date ? 'text-slate-800 font-semibold' : 'text-slate-400 font-normal'}>
+                        {date ? formatDateDisplay(date) : 'Select Date'}
+                      </span>
+                      <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+                    </button>
+
+                    {/* Calendar Popover matching reference design */}
+                    {calendarOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-[280px] sm:w-[310px] bg-white rounded-2xl border-2 border-[#93c5fd] shadow-2xl p-4 sm:p-5 z-50 animate-in fade-in zoom-in-95 duration-100 select-none">
+                        {/* Header: Month Year + Navigation Controls */}
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                            {MONTH_NAMES[viewMonth]} {viewYear}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handlePrevMonth}
+                              disabled={isPrevDisabled}
+                              className={`p-1 rounded-lg transition-colors ${
+                                isPrevDisabled
+                                  ? 'text-blue-200 cursor-not-allowed'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
+                              }`}
+                              aria-label="Previous Month"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleNextMonth}
+                              className="p-1 rounded-lg text-slate-800 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                              aria-label="Next Month"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Day Name Headers (Sun and Sat are coral/red) */}
+                        <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold mb-3">
+                          {DAY_NAMES.map((day, idx) => (
+                            <div
+                              key={day}
+                              className={idx === 0 || idx === 6 ? 'text-[#f87171]' : 'text-slate-800'}
+                            >
+                              {day}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Days Grid */}
+                        <div className="grid grid-cols-7 gap-y-2 gap-x-1 text-center text-xs sm:text-sm">
+                          {/* Empty leading slots */}
+                          {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
+                            <div key={`blank-${idx}`} className="h-8 w-8" />
+                          ))}
+
+                          {/* Month Days */}
+                          {Array.from({ length: daysInMonth }).map((_, idx) => {
+                            const dayNum = idx + 1;
+                            const dayStr = String(dayNum).padStart(2, '0');
+                            const monthStr = String(viewMonth + 1).padStart(2, '0');
+                            const fullDateStr = `${viewYear}-${monthStr}-${dayStr}`;
+                            const isPast = fullDateStr < todayDateStr;
+                            const isSelected = date === fullDateStr;
+                            const dayOfWeek = (firstDayOfWeek + idx) % 7;
+                            const isSunday = dayOfWeek === 0;
+
+                            return (
+                              <button
+                                key={fullDateStr}
+                                type="button"
+                                disabled={isPast}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (isPast) return;
+                                  setDate(fullDateStr);
+                                  setCalendarOpen(false);
+                                  setErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next.date;
+                                    return next;
+                                  });
+                                }}
+                                className={`h-8 w-8 sm:h-9 sm:w-9 mx-auto flex items-center justify-center rounded-xl text-xs sm:text-sm transition-all select-none ${
+                                  isSelected
+                                    ? 'bg-[#2563eb] text-white font-semibold shadow-xs cursor-pointer'
+                                    : isPast
+                                    ? 'text-slate-300 cursor-not-allowed opacity-40'
+                                    : isSunday
+                                    ? 'text-[#f87171] hover:bg-rose-50 hover:text-rose-600 cursor-pointer font-medium'
+                                    : 'text-slate-800 hover:bg-blue-50 hover:text-blue-600 cursor-pointer font-medium'
+                                }`}
+                              >
+                                {dayNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {errors.date && (
+                    <p className="mt-1.5 text-xs text-rose-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                      <span>{errors.date}</span>
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Row 2: Time (two separate rounded input boxes: [ 00 ] [ 00 ]) */}
-              <div className="flex items-center justify-between py-4 border-b border-slate-200">
-                <span className="text-sm font-medium text-slate-700">Time</span>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    maxLength={2}
-                    value={hour}
-                    onChange={(e) => setHour(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                    placeholder="00"
-                    className="w-16 h-10 px-2 rounded-2xl border border-slate-400 text-center font-normal text-slate-700 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs"
-                  />
-                  <input
-                    type="text"
-                    maxLength={2}
-                    value={minute}
-                    onChange={(e) => setMinute(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                    placeholder="00"
-                    className="w-16 h-10 px-2 rounded-2xl border border-slate-400 text-center font-normal text-slate-700 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs"
-                  />
+              <div className="flex items-start justify-between py-4 border-b border-slate-200">
+                <span className="text-sm font-medium text-slate-700 pt-2">Time</span>
+                <div className="flex flex-col items-end">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      maxLength={2}
+                      value={hour}
+                      onChange={(e) => {
+                        setHour(e.target.value.replace(/\D/g, '').slice(0, 2));
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.time;
+                          return next;
+                        });
+                      }}
+                      placeholder="00"
+                      className={`w-16 h-10 px-2 rounded-2xl border text-center font-normal text-slate-700 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs ${
+                        errors.time ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]' : 'border-slate-400'
+                      }`}
+                    />
+                    <input
+                      type="text"
+                      maxLength={2}
+                      value={minute}
+                      onChange={(e) => {
+                        setMinute(e.target.value.replace(/\D/g, '').slice(0, 2));
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.time;
+                          return next;
+                        });
+                      }}
+                      placeholder="00"
+                      className={`w-16 h-10 px-2 rounded-2xl border text-center font-normal text-slate-700 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs ${
+                        errors.time ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]' : 'border-slate-400'
+                      }`}
+                    />
+                  </div>
+                  {errors.time && (
+                    <p className="mt-1.5 text-xs text-rose-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                      <span>{errors.time}</span>
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Row 3: Location (Onsite) OR Link (Online) */}
               {scheduleType === 'onsite' ? (
                 /* Onsite: Location Dropdown with Andima branch offices */
-                <div className="flex items-center justify-between py-4 relative">
-                  <span className="text-sm font-medium text-slate-700">Location</span>
-                  <div className="relative" ref={dropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setLocationDropdownOpen((prev) => !prev)}
-                      className="w-[200px] sm:w-[240px] px-4 py-2 rounded-xl border border-slate-400 bg-white text-slate-700 text-xs font-medium flex items-center justify-between shadow-xs hover:border-slate-500 transition-colors cursor-pointer"
-                    >
-                      <span className={locationAddress ? 'text-slate-800 font-semibold' : 'text-slate-400 font-normal'}>
-                        {locationAddress || 'Select Location'}
-                      </span>
-                      <ChevronDown
-                        className={`w-4 h-4 text-slate-500 transition-transform ${
-                          locationDropdownOpen ? 'rotate-180' : ''
+                <div className="flex items-start justify-between py-4 relative">
+                  <span className="text-sm font-medium text-slate-700 pt-2">Location</span>
+                  <div className="flex flex-col items-end">
+                    <div className="relative" ref={dropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setLocationDropdownOpen((prev) => !prev)}
+                        className={`w-[200px] sm:w-[240px] px-4 py-2 rounded-xl border bg-white text-slate-700 text-xs font-medium flex items-center justify-between shadow-xs transition-colors cursor-pointer ${
+                          errors.locationAddress
+                            ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]'
+                            : 'border-slate-400 hover:border-slate-500'
                         }`}
-                      />
-                    </button>
+                      >
+                        <span className={locationAddress ? 'text-slate-800 font-semibold' : 'text-slate-400 font-normal'}>
+                          {locationAddress || 'Select Location'}
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-slate-500 transition-transform ${
+                            locationDropdownOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
 
-                    {locationDropdownOpen && (
-                      <div className="absolute right-0 top-full mt-1.5 w-[200px] sm:w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLocationAddress('');
-                            setLocationDropdownOpen(false);
-                          }}
-                          className="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-400 hover:bg-slate-50 cursor-pointer"
-                        >
-                          Select Location
-                        </button>
-                        {ANDIMA_BRANCHES.map((branch) => (
+                      {locationDropdownOpen && (
+                        <div className="absolute right-0 top-full mt-1.5 w-[200px] sm:w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
                           <button
-                            key={branch}
                             type="button"
                             onClick={() => {
-                              setLocationAddress(branch);
+                              setLocationAddress('');
                               setLocationDropdownOpen(false);
+                              setErrors((prev) => ({ ...prev, locationAddress: 'Belum mengisi' }));
                             }}
-                            className={`w-full px-4 py-2.5 text-left text-xs font-bold transition-colors cursor-pointer ${
-                              locationAddress === branch ? 'bg-[#d9dfe8] text-slate-900' : 'text-slate-800 hover:bg-slate-100'
-                            }`}
+                            className="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-400 hover:bg-slate-50 cursor-pointer"
                           >
-                            {branch}
+                            Select Location
                           </button>
-                        ))}
-                      </div>
+                          {ANDIMA_BRANCHES.map((branch) => (
+                            <button
+                              key={branch}
+                              type="button"
+                              onClick={() => {
+                                setLocationAddress(branch);
+                                setLocationDropdownOpen(false);
+                                setErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next.locationAddress;
+                                  return next;
+                                });
+                              }}
+                              className={`w-full px-4 py-2.5 text-left text-xs font-bold transition-colors cursor-pointer ${
+                                locationAddress === branch ? 'bg-[#d9dfe8] text-slate-900' : 'text-slate-800 hover:bg-slate-100'
+                              }`}
+                            >
+                              {branch}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {errors.locationAddress && (
+                      <p className="mt-1.5 text-xs text-rose-600 font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                        <span>{errors.locationAddress}</span>
+                      </p>
                     )}
                   </div>
                 </div>
               ) : (
                 /* Online: Input Link with placeholder "input link" and empty default value */
-                <div className="flex items-center justify-between py-4">
-                  <span className="text-sm font-medium text-slate-700">Link Meeting</span>
-                  <div>
-                    <input
-                      type="text"
-                      value={meetLink}
-                      onChange={(e) => setMeetLink(e.target.value)}
-                      placeholder="Input link"
-                      className="w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border border-slate-300 text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 placeholder:font-sans"
-                    />
+                <div className="flex items-start justify-between py-4">
+                  <span className="text-sm font-medium text-slate-700 pt-2">Meeting Link</span>
+                  <div className="flex flex-col items-end">
+                    <div>
+                      <input
+                        type="text"
+                        value={meetLink}
+                        onChange={(e) => {
+                          setMeetLink(e.target.value);
+                          if (e.target.value.trim()) {
+                            setErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.meetLink;
+                              return next;
+                            });
+                          }
+                        }}
+                        placeholder="Input meeting link"
+                        className={`w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 placeholder:font-sans ${
+                          errors.meetLink ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]' : 'border-slate-300'
+                        }`}
+                      />
+                    </div>
+                    {errors.meetLink && (
+                      <p className="mt-1.5 text-xs text-rose-600 font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                        <span>{errors.meetLink}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* General submit error if any */}
+            {errors.general && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium text-center flex items-center justify-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{errors.general}</span>
+              </div>
+            )}
 
             {/* Bottom Actions: Cancel & Send buttons matching screenshot */}
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -307,7 +615,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-5 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
+                className="px-5 py-2 text-sm font-medium border rounded-xl text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
               >
                 Cancel
               </button>

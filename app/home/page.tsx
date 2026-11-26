@@ -127,7 +127,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-neutral-100 flex flex-col items-center justify-center p-8 gap-8 font-sans">
+    <div className="min-h-screen bg-neutral-100 flex flex-col items-center justify-center p-4 sm:p-8 gap-6 sm:gap-8 font-sans w-full overflow-x-hidden">
 
       <div className="w-full max-w-[340px]">
         <UserInput

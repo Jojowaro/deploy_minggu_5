@@ -305,7 +305,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Execute parallel lookups across d2_candidates and d2_application_history
       const [candCheckRes, histCheckRes] = await Promise.all([
         fetch(
-          `${baseUrl}/rest/v1/d2_candidates?${filterQuery}&select=id,application_count,status`,
+          `${baseUrl}/rest/v1/d2_candidates?${filterQuery}&select=id,job_id,application_count,status`,
           {
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
@@ -334,6 +334,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (candCheckRes.ok) {
         const candRows = await candCheckRes.json();
         if (Array.isArray(candRows) && candRows.length > 0) {
+          // Pencegahan Duplikasi: Jika pelamar masih aktif di posisi lowongan yang sama
+          const duplicateActive = candRows.find(
+            (r: any) =>
+              r.job_id === validJobId &&
+              r.status !== 'rejected' &&
+              r.status !== 'deleted'
+          );
+          if (duplicateActive) {
+            return NextResponse.json(
+              {
+                success: false,
+                message:
+                  'Anda sudah memiliki berkas lamaran aktif untuk posisi ini yang sedang dalam proses seleksi. Anda tidak perlu mengirimkan formulir ganda untuk posisi yang sama.',
+                errors: {
+                  email: ['Lamaran Anda untuk posisi ini sudah terdaftar dan masih dalam proses peninjauan.'],
+                },
+              },
+              { status: 409 }
+            );
+          }
+
           totalPrior += candRows.length;
           maxCandidateRound = candRows.reduce(
             (max: number, r: any) => Math.max(max, r.application_count || 1),

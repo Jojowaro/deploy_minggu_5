@@ -6,6 +6,7 @@ import { MoreVertical, Eye, ArrowRight, UserCheck, ShieldAlert, History, Trash2,
 import { CandidateWithJob, CandidateStatus } from '@/app/squad-d2/src/types/candidate';
 import { KANBAN_COLUMNS, getColumnConfig } from '@/app/squad-d2/src/types/kanban';
 import { formatOrdinal } from '@/utils/formatOrdinal';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface CandidateCardProps {
   candidate: CandidateWithJob;
@@ -29,6 +30,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { language, t } = useLanguage();
 
   function formatOrdinal(num: number): string {
   const mod100 = num % 100;
@@ -67,7 +69,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const columnConfig = getColumnConfig(candidate.status);
 
   // Status Pill details
-  const statusBadgeLabel = columnConfig.badgeLabel;
+  const normalizedStatus = (candidate.status || '').toLowerCase();
+  const statusBadgeLabel = t(`kanban.stages.${normalizedStatus}`, t(`kanban.stages.${columnConfig.id.toLowerCase()}`, columnConfig.badgeLabel));
   const statusBadgeBg = columnConfig.badgeBg;
 
   // Format Application Date (Application Date in top right corner per Section 3E)
@@ -77,7 +80,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
     try {
       const d = new Date(rawDate);
       if (isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('id-ID', {
+      return d.toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -85,7 +88,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
     } catch {
       return '';
     }
-  }, [candidate.applied_at, candidate.created_at]);
+  }, [candidate.applied_at, candidate.created_at, language]);
 
   // Qualification logic (Fit & Proper Preview per Section 2 No 5 & Page 7 Checklist)
   // Fit & Proper Calculation Status (Tag "Not Counted Yet" appears when candidate has not been calculated, and disappears once skill/fit & proper is calculated)
@@ -122,6 +125,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
     candidate.status === 'rejected' &&
     (candidate.rejection_reason?.toLowerCase().includes('not eligible') ||
       candidate.rejection_reason?.toLowerCase().includes('permanent') ||
+      candidate.rejection_reason?.toLowerCase().includes('tidak memenuhi') ||
       (candidate.full_name.toLowerCase().includes('rusdi') && candidate.status === 'rejected'));
 
   // Multi-position indicator (Section 3D)
@@ -166,7 +170,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           {applicationDateStr && (
             <span
               className="text-[10px] font-semibold text-slate-400 bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded-md"
-              title="Tanggal Pengajuan Lamaran (Application Date)"
+              title={t('kanban.card.applicationDate', 'Tanggal Pengajuan Lamaran')}
             >
               {applicationDateStr}
             </span>
@@ -197,7 +201,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                 className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2 cursor-pointer"
               >
                 <Eye className="w-3.5 h-3.5 text-slate-500" />
-                View Details &amp; Logs
+                {t('kanban.card.viewDetailsLogs', 'Lihat Detail & Log')}
               </button>
 
               {/* Fit & Proper Analysis Shortcut */}
@@ -207,7 +211,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                 className="w-full px-3 py-1.5 text-left text-xs font-semibold text-purple-700 hover:bg-purple-50 flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
-                <span>Fit &amp; Proper Analysis</span>
+                <span>{t('kanban.card.fitProperAnalysis', 'Analisis Fit & Proper')}</span>
               </Link>
 
               {/* Edit Interview option when candidate is in Interviewed column */}
@@ -221,7 +225,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                   className="w-full px-3 py-1.5 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                  Edit Info Interview
+                  {t('kanban.card.editInterview', 'Edit Info Wawancara')}
                 </button>
               )}
 
@@ -236,13 +240,13 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                   className="w-full px-3 py-1.5 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Konversi ke Karyawan
+                  {t('kanban.card.convertToEmployee', 'Konversi ke Karyawan')}
                 </button>
               )}
 
               <div className="border-t border-slate-100 my-1" />
               <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Move to stage
+                {t('kanban.card.moveToStage', 'Pindahkan ke tahap')}
               </div>
 
               {KANBAN_COLUMNS.map((col) => {
@@ -262,7 +266,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                         : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'
                     }`}
                   >
-                    <span>{col.badgeLabel}</span>
+                    <span>{t(`kanban.stages.${col.id}`, col.badgeLabel)}</span>
                     {!isCurrent && <ArrowRight className="w-3 h-3 text-slate-400" />}
                   </button>
                 );
@@ -279,7 +283,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                 className="w-full px-3 py-1.5 text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                Hapus Pelamar
+                {t('kanban.card.deleteCandidate', 'Hapus Pelamar')}
               </button>
             </div>
           )}
@@ -299,47 +303,54 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         {/* 2. Qualification Pill (Fit & Proper Preview) */}
         {isQualified && (
           <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold tracking-wider bg-[#16A37A] text-white shadow-xs inline-flex items-center justify-center text-center">
-            Qualified
+            {t('kanban.card.qualified', 'Qualified')}
           </span>
         )}
 
         {showNotCountedYet && (
           <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-[#94a3b8] text-white shadow-xs inline-flex items-center justify-center text-center">
-            Not Counted Yet
+            {t('kanban.card.notCountedYet', 'Not Counted Yet')}
           </span>
         )}
 
         {/* 3. History Badges (FR-D2-005 FR-05.2) */}
         {isRepeater && (
           <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold bg-[#5D2B2BCC] text-white shadow-xs inline-flex items-center justify-center text-center">
-            {formatOrdinal(candidate.application_count || 2)} Applicant
+            {t('kanban.card.nthApplicant', {
+              ordinal: formatOrdinal(candidate.application_count || 2),
+              count: candidate.application_count || 2,
+            }, `${formatOrdinal(candidate.application_count || 2)} Applicant`)}
           </span>
         )}
 
         {/* 4. Multi-Posisi Parallel Application Badge (Section 3D) */}
         {hasParallelApplications && (
           <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-indigo-800 text-white border inline-flex items-center justify-center text-center">
-            Multi-Posisi ({candidate.parallel_applications_count})
+            {t('kanban.card.multiPosition', {
+              count: candidate.parallel_applications_count || 2,
+            }, `Multi-Posisi (${candidate.parallel_applications_count})`)}
           </span>
         )}
 
         {/* 5. Specific Rejection Stage (Section 2 No 6: rejected_at_stage) */}
         {candidate.status === 'rejected' && candidate.rejected_at_stage && (
           <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs inline-flex items-center justify-center text-center">
-            Gugur: {candidate.rejected_at_stage}
+            {t('kanban.card.failedAt', {
+              stage: t(`kanban.stages.${candidate.rejected_at_stage.toLowerCase()}`, candidate.rejected_at_stage),
+            }, `Gugur: ${candidate.rejected_at_stage}`)}
           </span>
         )}
 
         {isNotEligible && (
           <span className="w-[118px] h-[26px] rounded-full text-[11px] font-bold bg-[#df3d58] text-white shadow-xs inline-flex items-center justify-center text-center">
-            Not Eligible
+            {t('kanban.card.notEligible', 'Not Eligible')}
           </span>
         )}
 
         {/* 6. Employee Provisioning Tier Badge (Section 3C) */}
         {candidate.employee_tier && (
           <span className="w-[118px] h-[26px] rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs inline-flex items-center justify-center text-center">
-            ⭐ {candidate.employee_tier.replace('_', ' ')}
+            ⭐ {t(`kanban.provisioning.tiers.${candidate.employee_tier === 'associate_trainee' ? 'associateTrainee' : candidate.employee_tier === 'probationary_staff' ? 'probation' : candidate.employee_tier}.label`, candidate.employee_tier.replace('_', ' '))}
           </span>
         )}
       </div>

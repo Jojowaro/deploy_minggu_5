@@ -6,16 +6,12 @@ import {
   UserCheck, 
   ShieldCheck, 
   Lock, 
-  Briefcase, 
-  Building2, 
-  Calendar, 
-  Mail, 
-  Sparkles, 
   BadgeCheck, 
   AlertCircle 
 } from 'lucide-react';
 import { CandidateWithJob, EmployeeTier } from '@/app/squad-d2/src/types/candidate';
 import { UserProfile, isHRManager } from '@/utils/auth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface EmployeeProvisioningData {
   candidateId: string;
@@ -42,6 +38,7 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
   onClose,
   onConfirmHiring,
 }) => {
+  const { t } = useLanguage();
   const isManager = isHRManager(currentUser?.role);
 
   const [tier, setTier] = useState<EmployeeTier>('trainee');
@@ -93,15 +90,15 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isManager) {
-      setErrorMsg('Akses ditolak: Hanya HR Manager yang berwenang mengeksekusi konversi ke karyawan resmi.');
+      setErrorMsg(t('kanban.provisioning.errors.accessDenied', 'Akses ditolak: Hanya HR Manager yang berwenang mengeksekusi konversi ke karyawan resmi.'));
       return;
     }
     if (!employeeId.trim()) {
-      setErrorMsg('Nomor Induk Pegawai (NIP) wajib diisi.');
+      setErrorMsg(t('kanban.provisioning.errors.nipRequired', 'Nomor Induk Pegawai (NIP) wajib diisi.'));
       return;
     }
     if (!startDate) {
-      setErrorMsg('Silakan pilih tanggal mulai bekerja.');
+      setErrorMsg(t('kanban.provisioning.errors.startDateRequired', 'Silakan pilih tanggal mulai bekerja.'));
       return;
     }
 
@@ -117,17 +114,40 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
       });
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal memproses konversi karyawan';
+      const msg = err instanceof Error ? err.message : t('kanban.provisioning.errors.failed', 'Gagal memproses konversi karyawan');
       setErrorMsg(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const tierOptions = [
+    {
+      id: 'trainee' as EmployeeTier,
+      label: t('kanban.provisioning.tiers.trainee.label', 'Trainee'),
+      desc: t('kanban.provisioning.tiers.trainee.desc', 'Program Pelatihan Magang / Pengemudi Baru'),
+    },
+    {
+      id: 'associate_trainee' as EmployeeTier,
+      label: t('kanban.provisioning.tiers.associateTrainee.label', 'Associate Trainee'),
+      desc: t('kanban.provisioning.tiers.associateTrainee.desc', 'Junior / Operasional Lapangan'),
+    },
+    {
+      id: 'probationary_staff' as EmployeeTier,
+      label: t('kanban.provisioning.tiers.probation.label', 'Probation (Percobaan)'),
+      desc: t('kanban.provisioning.tiers.probation.desc', 'Masa Percobaan 3 Bulan'),
+    },
+    {
+      id: 'permanent' as EmployeeTier,
+      label: t('kanban.provisioning.tiers.permanent.label', 'Contract / Permanent'),
+      desc: t('kanban.provisioning.tiers.permanent.desc', 'Karyawan Kontrak / Tetap'),
+    },
+  ];
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div 
-        className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transform animate-in zoom-in-95 duration-150 max-h-[94vh] flex flex-col"
+        className="relative w-full max-w-[calc(100vw-32px)] sm:max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transform animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar Accent */}
@@ -138,29 +158,32 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-6 sm:p-8 overflow-y-auto">
+        <div className="p-4 sm:p-8 overflow-y-auto">
           {/* Header Title */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
-              <UserCheck className="w-6 h-6" />
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+              <UserCheck className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Employee Provisioning (Section 3C)
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                {t('kanban.provisioning.badge', 'Employee Provisioning (Section 3C)')}
               </span>
-              <h3 className="text-xl font-extrabold text-slate-900 mt-1 leading-snug">
-                Konversi Pelamar Menjadi Karyawan
+              <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1 leading-snug">
+                {t('kanban.provisioning.title', 'Konversi Pelamar Menjadi Karyawan')}
               </h3>
             </div>
           </div>
 
           <p className="text-xs text-slate-600 leading-relaxed font-medium mb-4">
-            Menerbitkan Nomor Induk Pegawai (NIP), akun sistem internal, dan mengintegrasikan data pelamar lolos ke struktur organisasi resmi PT Andima Transportindo.
+            {t(
+              'kanban.provisioning.subtitle',
+              'Menerbitkan Nomor Induk Pegawai (NIP), akun sistem internal, dan mengintegrasikan data pelamar lolos ke struktur organisasi resmi PT Andima Transportindo.'
+            )}
           </p>
 
           {/* Role Check Alert if not HR Manager */}
@@ -168,7 +191,8 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
             <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2 font-medium">
               <Lock className="w-4 h-4 shrink-0 text-amber-600" />
               <span>
-                <strong>Mode Pratinjau:</strong> Eksekusi konversi karyawan adalah hak prerogatif eksekutif <strong>HR Manager</strong> (RBAC Mas Bram).
+                <strong>{t('kanban.provisioning.previewModeLabel', 'Mode Pratinjau:')}</strong>{' '}
+                {t('kanban.provisioning.previewWarning', 'Eksekusi konversi karyawan adalah hak prerogatif eksekutif HR Manager (RBAC Mas Bram).')}
               </span>
             </div>
           )}
@@ -181,15 +205,15 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
           )}
 
           {/* Candidate Profile Summary */}
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-bold text-slate-900">{candidate.full_name}</p>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
-                  {candidate.job_title || 'Kandidat'}
+                  {candidate.job_title || t('kanban.provisioning.candidateFallback', 'Kandidat')}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+              <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                 <span>✉ {candidate.email}</span>
                 {candidate.nik && <span>• NIK: {candidate.nik}</span>}
               </p>
@@ -200,15 +224,10 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
             {/* 1. Tingkatan Kerja Awal (Employee Tier) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Pilih Tingkatan Kerja Awal (Initial Status):
+                {t('kanban.provisioning.selectTierLabel', 'Pilih Tingkatan Kerja Awal (Initial Status):')}
               </label>
-              <div className="grid grid-cols-2 gap-2.5">
-                {[
-                  { id: 'trainee' as EmployeeTier, label: 'Trainee', desc: 'Program Pelatihan Magang / Pengemudi Baru' },
-                  { id: 'associate_trainee' as EmployeeTier, label: 'Associate Trainee', desc: 'Junior / Operasional Lapangan' },
-                  { id: 'probationary_staff' as EmployeeTier, label: 'Probation (Percobaan)', desc: 'Masa Percobaan 3 Bulan' },
-                  { id: 'permanent' as EmployeeTier, label: 'Contract / Permanent', desc: 'Karyawan Kontrak / Tetap' },
-                ].map((item) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {tierOptions.map((item) => {
                   const isSelected = tier === item.id;
                   return (
                     <button
@@ -236,14 +255,14 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Nomor Induk Pegawai (NIP Resmi):
+                  {t('kanban.provisioning.nipLabel', 'Nomor Induk Pegawai (NIP Resmi):')}
                 </label>
                 <button
                   type="button"
                   onClick={() => setEmployeeId(generateNip(tier))}
-                  className="text-[11px] font-semibold text-blue-600 hover:underline"
+                  className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
                 >
-                  Regenerate NIP
+                  {t('kanban.provisioning.regenerateNip', 'Regenerate NIP')}
                 </button>
               </div>
               <input
@@ -259,7 +278,7 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Jabatan / Posisi Resmi:
+                  {t('kanban.provisioning.positionLabel', 'Jabatan / Posisi Resmi:')}
                 </label>
                 <input
                   type="text"
@@ -272,7 +291,7 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Departemen:
+                  {t('kanban.provisioning.departmentLabel', 'Departemen:')}
                 </label>
                 <input
                   type="text"
@@ -287,7 +306,7 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
             {/* 4. Tanggal Mulai Bekerja (Start Date) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Tanggal Mulai Bekerja (Join / Onboarding Date):
+                {t('kanban.provisioning.startDateLabel', 'Tanggal Mulai Bekerja (Join / Onboarding Date):')}
               </label>
               <input
                 type="date"
@@ -299,19 +318,19 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
             </div>
 
             {/* Bottom Actions */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer text-center"
               >
-                Batal
+                {t('kanban.provisioning.cancel', 'Batal')}
               </button>
               <button
                 type="submit"
                 disabled={!isManager || isSubmitting}
-                className={`px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all flex items-center gap-2 ${
+                className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
                   isManager && !isSubmitting
                     ? 'bg-emerald-600 hover:bg-emerald-700 hover:shadow-lg cursor-pointer'
                     : 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
@@ -320,12 +339,12 @@ export const EmployeeProvisioningModal: React.FC<EmployeeProvisioningModalProps>
                 {isSubmitting ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Menerbitkan User ID...</span>
+                    <span>{t('kanban.provisioning.issuing', 'Menerbitkan User ID...')}</span>
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Konfirmasi &amp; Terbitkan Karyawan</span>
+                    <span>{t('kanban.provisioning.confirm', 'Konfirmasi & Terbitkan Karyawan')}</span>
                   </>
                 )}
               </button>

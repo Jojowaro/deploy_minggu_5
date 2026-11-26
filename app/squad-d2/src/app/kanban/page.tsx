@@ -39,6 +39,7 @@ import {
 } from './actions';
 import { createClient } from '@/utils/supabase/client';
 import { getAuthenticatedUserProfile, UserProfile, isHRManager, isHRRecruiter } from '@/utils/auth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface ToastMessage {
   id: string;
@@ -49,6 +50,7 @@ interface ToastMessage {
 
 export default function KanbanPage() {
   const router = useRouter();
+  const { language, t } = useLanguage();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [candidates, setCandidates] = useState<CandidateWithJob[]>([]);
@@ -544,6 +546,8 @@ export default function KanbanPage() {
             rejected_at_stage: finalRejectedAtStage || c.rejected_at_stage,
             employee_tier: employeeTier || c.employee_tier,
             employee_id: employeeId || c.employee_id,
+            employee_user_id: employeeId || c.employee_user_id,
+            initial_level: employeeTier || c.initial_level,
             final_status: targetStatus === 'rejected' ? 'rejected' : employeeTier ? 'accepted' : c.final_status,
             updated_at: new Date().toISOString(),
           };
@@ -795,6 +799,8 @@ export default function KanbanPage() {
               ...c,
               employee_tier: data.employeeTier,
               employee_id: data.employeeId,
+              employee_user_id: data.employeeId,
+              initial_level: data.employeeTier,
               final_status: 'accepted',
             }
           : c
@@ -814,28 +820,28 @@ export default function KanbanPage() {
       <Header onMenuClick={() => window.dispatchEvent(new Event('toggle-sidebar'))} />
 
       {/* Main Content Body */}
-      <main className="flex-1 px-4 sm:px-6 md:px-8 py-6 w-full max-w-[1600px] mx-auto flex flex-col">
+      <main className="flex-1 px-3 sm:px-6 md:px-8 py-4 sm:py-6 w-full max-w-[1600px] mx-auto flex flex-col">
           {/* Page Heading matching Figma HRMS D - HR.jpg & Image 1 */}
-          <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="mb-4 sm:mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                  KANBAN
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                  {t('kanban.title', 'KANBAN')}
                 </h1>
                 {isHRManager(currentUser?.role) ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs">
-                    <ShieldCheck className="w-3.5 h-3.5" /> Supervisi HR Manager
+                    <ShieldCheck className="w-3.5 h-3.5" /> {t('kanban.badges.hrManagerSupervision', 'Supervisi HR Manager')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 shadow-2xs">
-                    <Sparkles className="w-3.5 h-3.5" /> Operasional HR Recruiter
+                    <Sparkles className="w-3.5 h-3.5" /> {t('kanban.badges.hrRecruiterOperations', 'Operasional HR Recruiter')}
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 {isHRManager(currentUser?.role)
-                  ? 'Supervisi alur seleksi & monitoring riwayat audit trail rekrutmen PT Andima'
-                  : 'Pelacakan pipeline & pengelolaan tahapan kandidat pelamar (FR-D2-002)'}
+                  ? t('kanban.subtitles.manager', 'Supervisi alur seleksi & monitoring riwayat audit trail rekrutmen PT Andima')
+                  : t('kanban.subtitles.recruiter', 'Pelacakan pipeline & pengelolaan tahapan kandidat pelamar (FR-D2-002)')}
               </p>
             </div>
           </div>
@@ -843,9 +849,9 @@ export default function KanbanPage() {
           {/* ========================================================================= */}
           {/* 3. KANBAN WHITE CONTAINER BOX (matching Figma HRMS D - HR.jpg & Image 1)  */}
           {/* ========================================================================= */}
-          <div className="flex-1 bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.05)] flex flex-col">
+          <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.05)] flex flex-col">
             {/* Top Filter & Search Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 mb-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3.5 mb-4 sm:mb-6">
               {/* Dropdown: Select Status */}
               <div ref={dropdownRef} className="relative shrink-0 sm:w-48">
                 <button
@@ -856,8 +862,8 @@ export default function KanbanPage() {
                   <div className="flex items-center gap-2 truncate">
                     <span className="truncate">
                       {selectedStatusFilter === 'all'
-                        ? 'Select Status'
-                        : activeColumns.find((c) => c.id === selectedStatusFilter)?.badgeLabel || getColumnConfig(selectedStatusFilter).badgeLabel}
+                        ? t('kanban.filters.selectStatus', 'Select Status')
+                        : t(`kanban.stages.${selectedStatusFilter}`, activeColumns.find((c) => c.id === selectedStatusFilter)?.badgeLabel || getColumnConfig(selectedStatusFilter).badgeLabel)}
                     </span>
                   </div>
                   <ChevronDown
@@ -882,7 +888,7 @@ export default function KanbanPage() {
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <span>All Columns ({activeColumns.length} Statuses)</span>
+                      <span>{t('kanban.filters.allColumns', { count: activeColumns.length }, `All Columns (${activeColumns.length} Statuses)`)}</span>
                       {selectedStatusFilter === 'all' && <Check className="w-3.5 h-3.5 text-blue-600" />}
                     </button>
                     <div className="border-t border-slate-100 my-1" />
@@ -904,7 +910,7 @@ export default function KanbanPage() {
                         >
                           <div className="flex items-center gap-2">
                             <span className={`w-2.5 h-2.5 rounded-full ${col.badgeBg}`} />
-                            <span>{col.badgeLabel}</span>
+                            <span>{t(`kanban.stages.${col.id}`, col.badgeLabel)}</span>
                           </div>
                           {isSelected && <Check className="w-3.5 h-3.5 text-blue-600" />}
                         </button>
@@ -914,7 +920,7 @@ export default function KanbanPage() {
                 )}
               </div>
 
-              {/* Search Input: Search Spesific Card */}
+              {/* Search Input: Search Specific Card */}
               <div className="relative flex-1">
                 <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                   <Search className="w-4 h-4" />
@@ -924,7 +930,7 @@ export default function KanbanPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Spesific Card"
+                  placeholder={t('kanban.filters.searchSpecificCard', 'Search Specific Card')}
                   className="w-full h-11 pl-10 pr-9 rounded-xl border border-slate-200/90 bg-[#f1f5f9]/40 text-slate-800 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all shadow-2xs"
                 />
                 {searchQuery && (
@@ -947,7 +953,7 @@ export default function KanbanPage() {
                     ? 'bg-white border-slate-200/90 text-slate-700 hover:bg-slate-50'
                     : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/80'
                 }`}
-                title={showRejectedColumn ? 'Klik untuk sembunyikan kolom Rejected' : 'Klik untuk tampilkan kolom Rejected'}
+                title={showRejectedColumn ? t('kanban.filters.hideRejectedTooltip', 'Klik untuk sembunyikan kolom Rejected') : t('kanban.filters.showRejectedTooltip', 'Klik untuk tampilkan kolom Rejected')}
               >
                 {showRejectedColumn ? (
                   <Eye className="w-4 h-4 text-slate-500" />
@@ -955,7 +961,7 @@ export default function KanbanPage() {
                   <EyeOff className="w-4 h-4 text-amber-600" />
                 )}
                 <span className="hidden md:inline">
-                  {showRejectedColumn ? 'Rejected: Visible' : 'Rejected: Hidden'}
+                  {showRejectedColumn ? t('kanban.filters.rejectedVisible', 'Rejected: Visible') : t('kanban.filters.rejectedHidden', 'Rejected: Hidden')}
                 </span>
               </button>
             </div>
@@ -966,15 +972,15 @@ export default function KanbanPage() {
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                   <span>
-                    Filtered view:
+                    {t('kanban.filters.filteredView', 'Filtered view:')}
                     {selectedStatusFilter !== 'all' && (
-                      <span className="font-semibold ml-1">Status: {activeColumns.find((c) => c.id === selectedStatusFilter)?.badgeLabel || getColumnConfig(selectedStatusFilter).badgeLabel} &bull;</span>
+                      <span className="font-semibold ml-1">{t('kanban.filters.status', 'Status:')} {t(`kanban.stages.${selectedStatusFilter}`, activeColumns.find((c) => c.id === selectedStatusFilter)?.badgeLabel || getColumnConfig(selectedStatusFilter).badgeLabel)} &bull;</span>
                     )}
                     {searchQuery && (
-                      <span className="ml-1">Query: &ldquo;<strong className="font-semibold">{searchQuery}</strong>&rdquo;</span>
+                      <span className="ml-1">{t('kanban.filters.query', 'Query:')} &ldquo;<strong className="font-semibold">{searchQuery}</strong>&rdquo;</span>
                     )}
                     <span className="text-slate-500 ml-1.5">
-                      ({filteredCandidates.length} candidate{filteredCandidates.length === 1 ? '' : 's'} matching)
+                      ({t('kanban.filters.showing', { count: filteredCandidates.length, total: candidates.length }, `Showing ${filteredCandidates.length} of ${candidates.length} candidates`)})
                     </span>
                   </span>
                 </div>
@@ -986,18 +992,18 @@ export default function KanbanPage() {
                   }}
                   className="text-blue-600 hover:text-blue-800 font-bold underline underline-offset-2 ml-2"
                 >
-                  Reset Filters
+                  {t('kanban.filters.resetFilter', 'Reset Filters')}
                 </button>
               </div>
             )}
 
             {/* Loading Skeleton */}
             {isLoading ? (
-              <div className="flex gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin">
+              <div className="flex gap-3 sm:gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin scroll-smooth">
                 {[1, 2, 3, 4, 5].map((idx) => (
                   <div
                     key={`skeleton-col-${idx}`}
-                    className="min-w-[280px] w-[280px] shrink-0 bg-[#f8fafd] rounded-3xl p-3 border border-slate-200/80 min-h-[580px] animate-pulse flex flex-col justify-between"
+                    className="w-[82vw] sm:w-[280px] min-w-[260px] sm:min-w-[280px] shrink-0 bg-[#f8fafd] rounded-2xl sm:rounded-3xl p-3 border border-slate-200/80 min-h-[580px] animate-pulse flex flex-col justify-between"
                   >
                     <div className="h-9 bg-slate-200 rounded-xl mb-4" />
                     <div className="space-y-3 flex-1">
@@ -1013,10 +1019,10 @@ export default function KanbanPage() {
               /* ========================================================================= */
               <div
                 ref={kanbanScrollRef}
-                className="flex gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin"
+                className="flex gap-3 sm:gap-4 items-stretch flex-1 overflow-x-auto pb-4 pt-1 w-full scrollbar-thin scroll-smooth"
               >
                 {visibleColumns.map((col) => (
-                  <div key={col.id} className="min-w-[280px] w-[280px] shrink-0 flex flex-col">
+                  <div key={col.id} className="w-[82vw] sm:w-[280px] min-w-[260px] sm:min-w-[280px] shrink-0 flex flex-col">
                     <KanbanColumn
                       column={col}
                       candidates={columnCandidates[col.id] || []}
@@ -1040,16 +1046,16 @@ export default function KanbanPage() {
                   <button
                     type="button"
                     onClick={() => setAddStatusModalOpen(true)}
-                    className="min-w-[280px] w-[280px] shrink-0 border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/20 rounded-2xl md:rounded-3xl flex flex-col items-center justify-center p-6 text-slate-400 hover:text-blue-600 transition-all group min-h-[580px] bg-slate-50/30"
+                    className="w-[82vw] sm:w-[280px] min-w-[260px] sm:min-w-[280px] shrink-0 border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/20 rounded-2xl md:rounded-3xl flex flex-col items-center justify-center p-6 text-slate-400 hover:text-blue-600 transition-all group min-h-[580px] bg-slate-50/30"
                   >
                     <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 group-hover:border-blue-300 text-slate-400 group-hover:text-blue-600 flex items-center justify-center mb-3 transition-all shadow-2xs group-hover:scale-105">
                       <Plus className="w-7 h-7" />
                     </div>
                     <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600">
-                      Add New Status
+                      {t('kanban.addNewStatus', 'Add New Status')}
                     </span>
                     <p className="text-[11px] text-slate-400 mt-1 text-center">
-                      Click to add a custom column
+                      {t('kanban.clickToAddCustomColumn', 'Click to add a custom column')}
                     </p>
                   </button>
                 )}
@@ -1098,7 +1104,7 @@ export default function KanbanPage() {
       {/* E. Confirm To Delete Modal matching Image 2 */}
       {deleteTargetColumn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border-2 border-[#ea384c] p-7 max-w-xs sm:max-w-sm w-full mx-auto shadow-2xl text-center animate-in zoom-in-95 duration-150 relative">
+          <div className="bg-white rounded-3xl border-2 border-[#ea384c] p-6 sm:p-7 max-w-[calc(100vw-32px)] sm:max-w-sm w-full mx-auto shadow-2xl text-center animate-in zoom-in-95 duration-150 relative">
             {/* Big Red Circle with Question Mark */}
             <div className="w-16 h-16 rounded-full border-[3.5px] border-[#ea384c] text-[#ea384c] flex items-center justify-center mx-auto text-3xl font-extrabold mb-4 select-none">
               ?
@@ -1106,7 +1112,7 @@ export default function KanbanPage() {
 
             {/* Title */}
             <h3 className="text-xl font-bold text-slate-900 mb-6">
-              Confirm To Delete?
+              {t('common.confirmDelete', 'Confirm To Delete?')}
             </h3>
 
             {/* Buttons: Yes (Blue), No (Red) matching Image 2 */}
@@ -1114,16 +1120,16 @@ export default function KanbanPage() {
               <button
                 type="button"
                 onClick={() => handleConfirmSoftDeleteColumn(deleteTargetColumn.id)}
-                className="bg-[#1a62ff] hover:bg-blue-700 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
+                className="bg-[#1a62ff] hover:bg-blue-700 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
               >
-                Yes
+                {t('common.yes', 'Yes')}
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteTargetColumn(null)}
-                className="bg-[#ea384c] hover:bg-rose-600 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
+                className="bg-[#ea384c] hover:bg-rose-600 text-white font-bold text-xs px-8 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
               >
-                No
+                {t('common.no', 'No')}
               </button>
             </div>
           </div>
@@ -1133,15 +1139,15 @@ export default function KanbanPage() {
       {/* F. Edit Column Modal */}
       {editingColumn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full mx-auto shadow-2xl animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 max-w-[calc(100vw-32px)] sm:max-w-md w-full mx-auto shadow-2xl animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900">
-                Edit Status Column
+                {t('kanban.editColumnTitle', 'Edit Status Column')}
               </h3>
               <button
                 type="button"
                 onClick={() => setEditingColumn(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1150,13 +1156,13 @@ export default function KanbanPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Status Label
+                  {t('kanban.statusLabel', 'Status Label')}
                 </label>
                 <input
                   type="text"
                   value={editLabel}
                   onChange={(e) => setEditLabel(e.target.value)}
-                  placeholder="e.g. APPLIED, ASSESSMENT"
+                  placeholder={t('kanban.statusPlaceholder', 'e.g. APPLIED, ASSESSMENT')}
                   className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   autoFocus
                 />
@@ -1166,17 +1172,17 @@ export default function KanbanPage() {
                 <button
                   type="button"
                   onClick={() => setEditingColumn(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
                   disabled={!editLabel.trim()}
                   onClick={handleSaveEditColumn}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                 >
-                  Save Changes
+                  {t('common.saveChanges', 'Save Changes')}
                 </button>
               </div>
             </div>
@@ -1187,10 +1193,10 @@ export default function KanbanPage() {
       {/* G. Add New Status Modal */}
       {addStatusModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full mx-auto shadow-2xl animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 max-w-[calc(100vw-32px)] sm:max-w-md w-full mx-auto shadow-2xl animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900">
-                Add New Status Column
+                {t('kanban.addNewStatusColumn', 'Add New Status Column')}
               </h3>
               <button
                 type="button"
@@ -1198,7 +1204,7 @@ export default function KanbanPage() {
                   setAddStatusModalOpen(false);
                   setNewStatusLabel('');
                 }}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1207,13 +1213,13 @@ export default function KanbanPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Status Name
+                  {t('kanban.addStatusModal.nameLabel', 'Status Name')}
                 </label>
                 <input
                   type="text"
                   value={newStatusLabel}
                   onChange={(e) => setNewStatusLabel(e.target.value)}
-                  placeholder="e.g. TECHNICAL TEST, PROBATION"
+                  placeholder={t('kanban.addStatusModal.namePlaceholder', 'e.g. TECHNICAL TEST, PROBATION')}
                   className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   autoFocus
                 />
@@ -1221,9 +1227,9 @@ export default function KanbanPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Badge Color
+                  {t('kanban.addStatusModal.colorLabel', 'Badge Color')}
                 </label>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   {[
                     { hex: '#3b82f6', bg: 'bg-[#3b82f6]' },
                     { hex: '#f59e0b', bg: 'bg-[#f59e0b]' },
@@ -1238,7 +1244,7 @@ export default function KanbanPage() {
                       key={c.hex}
                       type="button"
                       onClick={() => setSelectedColor(c)}
-                      className={`w-7 h-7 rounded-full ${c.bg} transition-all ${
+                      className={`w-7 h-7 rounded-full ${c.bg} transition-all cursor-pointer ${
                         selectedColor.hex === c.hex
                           ? 'ring-2 ring-offset-2 ring-blue-600 scale-110'
                           : 'opacity-70 hover:opacity-100'
@@ -1255,17 +1261,17 @@ export default function KanbanPage() {
                     setAddStatusModalOpen(false);
                     setNewStatusLabel('');
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
                   disabled={!newStatusLabel.trim()}
                   onClick={handleAddStatus}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                 >
-                  Add Status
+                  {t('kanban.addStatusModal.submit', 'Add Status')}
                 </button>
               </div>
             </div>

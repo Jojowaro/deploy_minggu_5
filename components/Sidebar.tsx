@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import Logo from "@/components/image/Logo.png";
 import {
   BriefcaseBusiness,
@@ -73,9 +74,16 @@ function HrmsLink({ label, href }: { label: string; href: string }) {
     (href === "/kanban" && (pathname === "/kanban" || pathname.startsWith("/kanban") || pathname.startsWith("/squad-d2/src/app/kanban"))) ||
     (href === "/fit-proper" && (pathname === "/fit-proper" || pathname.startsWith("/fit-proper") || pathname.startsWith("/squad-d2/src/app/fit-proper")));
 
+  const handleClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      window.dispatchEvent(new Event("close-sidebar"));
+    }
+  };
+
   return (
     <Link
       href={href}
+      onClick={handleClick}
       className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
         isActive
           ? "bg-[#cbdcf7] text-[#0f2342] font-bold shadow-xs"
@@ -115,6 +123,7 @@ function PlannedD1Item({ label }: { label: string }) {
 }
 
 export default function Sidebar({ userName, userRole, userInitials, onSignOut, isSigningOut = false }: SidebarProps) {
+  const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
   const isPublicRoute =
@@ -231,13 +240,13 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
     <>
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#0f2342] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#0f2342] px-4 py-5 text-[#d9e2fc] shadow-2xl transition-transform duration-300 ease-in-out ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -260,7 +269,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
               onClick={() => setIsHrmsOpen((value) => !value)}
               className="flex w-full items-center justify-between rounded-lg bg-[#0550D7] mb-2 px-3 py-2.5 text-white shadow-sm"
             >
-              <span className="flex items-center gap-3"><Users  size={17} /> HRMS</span>
+              <span className="flex items-center gap-3"><Users  size={17} /> {t("nav.hrms")}</span>
               <ChevronDown size={16} className={`transition-transform ${isHrmsOpen ? "rotate-0" : "-rotate-90"}`} />
             </button>
             {isHrmsOpen && (
@@ -300,14 +309,14 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                     }`}
                     aria-expanded={isD2Expanded}
                   >
-                    <span className="flex items-center gap-2 font-bold tracking-wide"><Layers3 size={14} /> RECRUITMENT PIPELINE</span>
+                    <span className="flex items-center gap-2 font-bold tracking-wide"><Layers3 size={14} /> {t("nav.recruitmentPipeline").toUpperCase()}</span>
                     <ChevronDown size={14} className={`transition-transform ${isD2Expanded ? "rotate-0" : "-rotate-90"}`} />
                   </button>
                   {isD2Expanded && (
                     <div className="ml-4 mt-1 border-l border-[#d9e2fc]/15 pl-2 space-y-1">
                       {/* Pipeline Kandidat - Akses HR Recruiter & HR Manager */}
                       <HrmsLink
-                        label={(account.role || '').toLowerCase().includes('manager') ? "Pipeline Kandidat (Supervisi)" : "Pipeline Kandidat (Operasional)"}
+                        label={(account.role || '').toLowerCase().includes('manager') ? t("nav.candidatePipelineSupervisor") : t("nav.candidatePipelineOperational")}
                         href="/kanban"
                       />
 
@@ -319,7 +328,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                       )*/}
 
                       {/* Portal Lowongan Kerja */}
-                      <HrmsLink label="Portal Lowongan & Jobs" href="/jobs" />
+                      <HrmsLink label={t("nav.portalJobs")} href="/jobs" />
                     </div>
                   )}
                 </div>
@@ -342,11 +351,11 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             type="button"
             onClick={() => setIsLogoutModalOpen(true)}
             disabled={isSigningOut || isInternalSigningOut}
-            className="w-full flex items-center justify-center gap-3 rounded-full border-2 border-[#D9364F] py-2 px-4 text-xs font-bold text-white hover:bg-[#D9364F]/10 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-center gap-3 rounded-full border-2 border-[#D9364F] py-2 px-4 text-xs font-bold text-white hover:bg-[#D9364F]/50 transition-colors cursor-pointer"
             aria-label="Logout"
             title="Logout"
           >
-            <span>Logout</span>
+            <span>{t("nav.logout")}</span>
           </button>
         </div>
       </aside>
@@ -365,10 +374,10 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             </div>
 
             <h3 id="logout-modal-title" className="text-base sm:text-lg font-bold text-slate-900">
-              Konfirmasi Keluar
+              Konfirmasi Logout
             </h3>
             <p className="text-xs sm:text-sm text-slate-500 mt-1.5 mb-6">
-              Apakah Anda yakin ingin keluar?
+              Apakah Anda yakin ingin logout?
             </p>
 
             <div className="grid grid-cols-2 gap-3 w-full">
@@ -389,9 +398,9 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                 className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 {isSigningOut || isInternalSigningOut ? (
-                  <span>Keluar...</span>
+                  <span>Sedang logout...</span>
                 ) : (
-                  <span>Ya</span>
+                  <span>Logout</span>
                 )}
               </button>
             </div>

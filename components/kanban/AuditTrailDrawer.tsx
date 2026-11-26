@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, History, Search, ShieldCheck, ArrowRight, User } from 'lucide-react';
 import { AuditLog } from '@/app/squad-d2/src/types/candidate';
 import { getColumnConfig } from '@/app/squad-d2/src/types/kanban';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface AuditTrailDrawerProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
   auditLogs,
   isLoading = false,
 }) => {
+  const { language, t } = useLanguage();
   const [filterText, setFilterText] = useState('');
 
   if (!isOpen) return null;
@@ -47,27 +49,31 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
         onClick={onClose}
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-4 sm:pl-10">
+        <div className="w-screen max-w-full sm:max-w-md bg-white shadow-2xl flex flex-col">
           {/* Drawer Header */}
-          <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+              <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shrink-0">
                 <History className="w-5 h-5" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Immutable Audit Trail
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                  {t('kanban.auditDrawer.title', 'Immutable Audit Trail')}
                 </h3>
-                <p className="text-xs text-slate-500">
-                  TR-09 Immutable Log &bull; {auditLogs.length} events recorded
+                <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+                  {t(
+                    'kanban.auditDrawer.subtitle',
+                    { count: auditLogs.length },
+                    `TR-09 Immutable Log • ${auditLogs.length} events recorded`
+                  )}
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -81,7 +87,10 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
                 type="text"
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                placeholder="Filter logs by candidate, actor, or reason..."
+                placeholder={t(
+                  'kanban.auditDrawer.searchPlaceholder',
+                  'Filter logs by candidate, actor, or reason...'
+                )}
                 className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-slate-50 focus:bg-white transition-colors"
               />
             </div>
@@ -104,7 +113,9 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
             ) : filteredLogs.length === 0 ? (
               <div className="text-center py-12 text-slate-400 text-xs">
                 <ShieldCheck className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                <p className="font-semibold text-slate-600">No audit log records found</p>
+                <p className="font-semibold text-slate-600">
+                  {t('kanban.auditDrawer.emptyLogs', 'No audit log records found')}
+                </p>
                 <p className="mt-1">
                   Status changes made via Drag-and-Drop are recorded immutably to <code className="text-blue-600">d2_audit_logs</code>.
                 </p>
@@ -113,10 +124,13 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
               filteredLogs.map((log) => {
                 const oldCfg = getColumnConfig(log.old_status);
                 const newCfg = getColumnConfig(log.new_status);
-                const formattedDate = new Date(log.created_at).toLocaleString('id-ID', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                });
+                const formattedDate = new Date(log.created_at).toLocaleString(
+                  language === 'id' ? 'id-ID' : 'en-US',
+                  {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }
+                );
 
                 return (
                   <div
@@ -132,7 +146,7 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
                     </div>
 
                     <div className="text-xs font-bold text-slate-900 mb-2">
-                      {log.d2_candidates?.full_name || 'Candidate'}
+                      {log.d2_candidates?.full_name || t('kanban.card.candidate', 'Candidate')}
                     </div>
 
                     {/* Stage Transition Pills */}
@@ -140,13 +154,13 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-white ${oldCfg.badgeBg}`}
                       >
-                        {oldCfg.badgeLabel}
+                        {t(`kanban.stages.${oldCfg.id.toLowerCase()}`, oldCfg.badgeLabel)}
                       </span>
                       <ArrowRight className="w-3 h-3 text-slate-400" />
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-white ${newCfg.badgeBg}`}
                       >
-                        {newCfg.badgeLabel}
+                        {t(`kanban.stages.${newCfg.id.toLowerCase()}`, newCfg.badgeLabel)}
                       </span>
                     </div>
 
@@ -167,9 +181,9 @@ export const AuditTrailDrawer: React.FC<AuditTrailDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors"
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors cursor-pointer"
             >
-              Close
+              {t('common.close', 'Close')}
             </button>
           </div>
         </div>

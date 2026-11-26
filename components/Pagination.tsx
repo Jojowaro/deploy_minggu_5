@@ -31,7 +31,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         type="button"
         onClick={() => handlePageClick(currentPage - 1)}
         disabled={currentPage <= 1}
-        className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-colors ${
           currentPage <= 1
             ? "border border-slate-100 text-slate-300 bg-white cursor-not-allowed"
             : "border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 cursor-pointer shadow-xs"
@@ -39,7 +39,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         aria-label="Previous Page"
       >
         <svg
-          className="w-4 h-4 stroke-[2.2]"
+          className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -49,12 +49,12 @@ export const Pagination: React.FC<PaginationProps> = ({
       </button>
 
       {/* Page Numbers */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         {/* Page 1 */}
         <button
           type="button"
           onClick={() => handlePageClick(1)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center transition-all ${
             currentPage === 1
               ? "bg-[#0F172A] text-white shadow-xs"
               : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -67,7 +67,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => handlePageClick(2)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center transition-all ${
             currentPage === 2
               ? "bg-[#0F172A] text-white shadow-xs"
               : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -80,7 +80,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => handlePageClick(3)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
+          className={`hidden sm:flex w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs sm:text-sm font-semibold items-center justify-center transition-all ${
             currentPage === 3
               ? "bg-[#0F172A] text-white shadow-xs"
               : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -93,7 +93,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => handlePageClick(4)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
+          className={`hidden md:flex w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs sm:text-sm font-semibold items-center justify-center transition-all ${
             currentPage === 4
               ? "bg-[#0F172A] text-white shadow-xs"
               : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -106,7 +106,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => handlePageClick(5)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
+          className={`hidden lg:flex w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs sm:text-sm font-semibold items-center justify-center transition-all ${
             currentPage === 5
               ? "bg-[#0F172A] text-white shadow-xs"
               : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -116,7 +116,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         </button>
 
         {/* Ellipsis */}
-        <span className="w-8 h-10 flex items-center justify-center text-slate-400 font-bold tracking-wider text-sm select-none">
+        <span className="w-6 sm:w-8 h-8 sm:h-10 flex items-center justify-center text-slate-400 font-bold tracking-wider text-xs sm:text-sm select-none">
           ...
         </span>
 
@@ -124,7 +124,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => handlePageClick(24)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center transition-all ${
             currentPage === 24
               ? "bg-[#0F172A] text-white shadow-xs"
               : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -139,7 +139,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         type="button"
         onClick={() => handlePageClick(currentPage + 1)}
         disabled={currentPage >= totalPages}
-        className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-colors ${
           currentPage >= totalPages
             ? "border border-slate-100 text-slate-300 bg-white cursor-not-allowed"
             : "border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 cursor-pointer shadow-xs"
@@ -147,7 +147,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         aria-label="Next Page"
       >
         <svg
-          className="w-4 h-4 stroke-[2.2]"
+          className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

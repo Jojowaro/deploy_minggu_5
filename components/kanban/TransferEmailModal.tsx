@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, ChevronDown, AlertCircle, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { CandidateWithJob } from '@/app/squad-d2/src/types/candidate';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface InterviewScheduleData {
   date: string;
@@ -27,31 +28,28 @@ export interface TransferEmailModalProps {
 
 const ANDIMA_BRANCHES = ['Jakarta', 'Balikpapan', 'Samarinda', 'Surabaya'];
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
+const MONTH_NAMES_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
 
-const formatDateDisplay = (dateStr: string) => {
+const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_NAMES_ID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+const formatDateDisplay = (dateStr: string, isIndonesian: boolean) => {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   const y = parseInt(parts[0], 10);
   const m = parseInt(parts[1], 10);
   const d = parseInt(parts[2], 10);
-  const monthName = MONTH_NAMES[m - 1] || '';
+  const monthList = isIndonesian ? MONTH_NAMES_ID : MONTH_NAMES_EN;
+  const monthName = monthList[m - 1] || '';
   return `${d} ${monthName} ${y}`;
 };
 
@@ -63,6 +61,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { language, t } = useLanguage();
   const [scheduleType, setScheduleType] = useState<'online' | 'onsite'>('online');
   const [date, setDate] = useState('');
   const [hour, setHour] = useState('00');
@@ -191,24 +190,24 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     if (!date) {
-      newErrors.date = 'Date must be filled';
+      newErrors.date = t('kanban.interviewModal.errorDate', 'Date must be filled');
     } else if (date < todayStr) {
-      newErrors.date = 'Tidak bisa memilih hari yang sudah lewat';
+      newErrors.date = t('kanban.interviewModal.errorPastDate', 'Tidak bisa memilih hari yang sudah lewat');
     }
 
     if (!hour.trim() || !minute.trim()) {
-      newErrors.time = 'Must be filled';
+      newErrors.time = t('kanban.interviewModal.errorTime', 'Must be filled');
     }
 
     if (scheduleType === 'online' && !meetLink.trim()) {
-      newErrors.meetLink = 'Meeting link must be filled';
+      newErrors.meetLink = t('kanban.interviewModal.errorMeetLink', 'Meeting link must be filled');
     }
 
     if (
       scheduleType === 'onsite' &&
       (!locationAddress.trim() || locationAddress === 'Select Location')
     ) {
-      newErrors.locationAddress = 'Location must be selected';
+      newErrors.locationAddress = t('kanban.interviewModal.errorLocation', 'Location must be selected');
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -238,7 +237,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transform animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-[calc(100vw-32px)] sm:max-w-xl md:max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transform animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Banner matching user design (deep royal blue gradient) */}
@@ -255,20 +254,20 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 overflow-y-auto">
+        <div className="p-4 sm:p-8 overflow-y-auto">
           {/* Main Title matching user screenshot */}
-          <h2 className="text-2xl sm:text-[26px] font-black text-center text-slate-900 tracking-tight uppercase">
-            INTERVIEW SETTING
+          <h2 className="text-xl sm:text-[26px] font-black text-center text-slate-900 tracking-tight uppercase">
+            {t('kanban.interviewModal.title', 'INTERVIEW SETTING')}
           </h2>
 
           <p className="text-center text-xs text-slate-500 mt-1 mb-5">
-            {isEditMode ? 'Perbarui jadwal interview untuk' : 'Atur jadwal interview untuk'}{' '}
+            {isEditMode ? t('kanban.interviewModal.subtitleUpdate', 'Perbarui jadwal interview untuk') : t('kanban.interviewModal.subtitleSet', 'Atur jadwal interview untuk')}{' '}
             <strong className="text-slate-800 font-semibold">{candidate.full_name}</strong> ({candidate.job_title || 'Pelamar'})
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Tab Pill Switcher (Online vs Onsite per UI screenshot) */}
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-5 sm:mb-6">
               <div className="inline-flex p-1 rounded-full bg-slate-100 border border-slate-200 shadow-inner">
                 <button
                   type="button"
@@ -281,13 +280,13 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                       return next;
                     });
                   }}
-                  className={`px-6 py-2 rounded-l-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  className={`px-4 sm:px-6 py-2 rounded-l-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                     scheduleType === 'online'
                       ? 'bg-[#1E3765] text-white shadow-sm'
                       : 'text-slate-700 hover:text-slate-900 bg-transparent'
                   }`}
                 >
-                  Online (Video Call)
+                  {t('kanban.interviewModal.online', 'Online (Video Call)')}
                 </button>
                 <button
                   type="button"
@@ -300,52 +299,46 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                       return next;
                     });
                   }}
-                  className={`px-6 py-2 rounded-r-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  className={`px-4 sm:px-6 py-2 rounded-r-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                     scheduleType === 'onsite'
                       ? 'bg-[#1E3765] text-white shadow-sm'
                       : 'text-slate-700 hover:text-slate-900 bg-transparent'
                   }`}
                 >
-                  Onsite (Pool Armada)
+                  {t('kanban.interviewModal.onsite', 'Onsite (Pool Armada)')}
                 </button>
               </div>
             </div>
 
             {/* Condition & Control Table Container matching Image layout */}
-            <div className="bg-[#f0f4f8] rounded-2xl border border-slate-200/90 overflow-visible shadow-xs p-5 sm:p-6 mb-6">
-              {/* Header Row: Condition | Control */}
-              {/* <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 font-bold text-slate-800 text-base">
-                <span>Condition</span>
-                <span>Control</span>
-              </div> */}
-
+            <div className="bg-[#f0f4f8] rounded-2xl border border-slate-200/90 overflow-visible shadow-xs p-4 sm:p-6 mb-5 sm:mb-6">
               {/* Row 1: Date */}
-              <div className="flex items-start justify-between py-4 border-b border-slate-200">
-                <span className="text-sm font-medium text-slate-700 pt-2">Date</span>
-                <div className="flex flex-col items-end">
-                  <div className="relative" ref={calendarRef}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3.5 sm:py-4 border-b border-slate-200 gap-2">
+                <span className="text-sm font-medium text-slate-700 pt-0 sm:pt-2">{t('kanban.interviewModal.date', 'Date')}</span>
+                <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto" ref={calendarRef}>
                     <button
                       type="button"
                       onClick={() => setCalendarOpen((prev) => !prev)}
-                      className={`w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border bg-white text-slate-700 text-xs font-semibold flex items-center justify-between shadow-xs transition-colors cursor-pointer ${
+                      className={`w-full sm:w-[240px] px-3.5 py-2 rounded-xl border bg-white text-slate-700 text-xs font-semibold flex items-center justify-between shadow-xs transition-colors cursor-pointer ${
                         errors.date
                           ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]'
                           : 'border-slate-300 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
                       }`}
                     >
                       <span className={date ? 'text-slate-800 font-semibold' : 'text-slate-400 font-normal'}>
-                        {date ? formatDateDisplay(date) : 'Select Date'}
+                        {date ? formatDateDisplay(date, language === 'id') : t('kanban.interviewModal.selectDate', 'Select Date')}
                       </span>
                       <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
                     </button>
 
                     {/* Calendar Popover matching reference design */}
                     {calendarOpen && (
-                      <div className="absolute right-0 top-full mt-2 w-[280px] sm:w-[310px] bg-white rounded-2xl border-2 border-[#93c5fd] shadow-2xl p-4 sm:p-5 z-50 animate-in fade-in zoom-in-95 duration-100 select-none">
+                      <div className="absolute right-0 top-full mt-2 w-[280px] sm:w-[310px] max-w-[calc(100vw-48px)] bg-white rounded-2xl border-2 border-[#93c5fd] shadow-2xl p-4 sm:p-5 z-50 animate-in fade-in zoom-in-95 duration-100 select-none">
                         {/* Header: Month Year + Navigation Controls */}
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                            {MONTH_NAMES[viewMonth]} {viewYear}
+                            {(language === 'id' ? MONTH_NAMES_ID : MONTH_NAMES_EN)[viewMonth]} {viewYear}
                           </span>
                           <div className="flex items-center gap-1.5">
                             <button
@@ -374,7 +367,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
 
                         {/* Day Name Headers (Sun and Sat are coral/red) */}
                         <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold mb-3">
-                          {DAY_NAMES.map((day, idx) => (
+                          {(language === 'id' ? DAY_NAMES_ID : DAY_NAMES_EN).map((day, idx) => (
                             <div
                               key={day}
                               className={idx === 0 || idx === 6 ? 'text-[#f87171]' : 'text-slate-800'}
@@ -447,9 +440,9 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
               </div>
 
               {/* Row 2: Time (two separate rounded input boxes: [ 00 ] [ 00 ]) */}
-              <div className="flex items-start justify-between py-4 border-b border-slate-200">
-                <span className="text-sm font-medium text-slate-700 pt-2">Time</span>
-                <div className="flex flex-col items-end">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3.5 sm:py-4 border-b border-slate-200 gap-2">
+                <span className="text-sm font-medium text-slate-700 pt-0 sm:pt-2">{t('kanban.interviewModal.time', 'Time')}</span>
+                <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
                   <div className="flex items-center gap-3">
                     <input
                       type="text"
@@ -498,21 +491,21 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
               {/* Row 3: Location (Onsite) OR Link (Online) */}
               {scheduleType === 'onsite' ? (
                 /* Onsite: Location Dropdown with Andima branch offices */
-                <div className="flex items-start justify-between py-4 relative">
-                  <span className="text-sm font-medium text-slate-700 pt-2">Location</span>
-                  <div className="flex flex-col items-end">
-                    <div className="relative" ref={dropdownRef}>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3.5 sm:py-4 gap-2 relative">
+                  <span className="text-sm font-medium text-slate-700 pt-0 sm:pt-2">{t('kanban.interviewModal.location', 'Location')}</span>
+                  <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
+                    <div className="relative w-full sm:w-auto" ref={dropdownRef}>
                       <button
                         type="button"
                         onClick={() => setLocationDropdownOpen((prev) => !prev)}
-                        className={`w-[200px] sm:w-[240px] px-4 py-2 rounded-xl border bg-white text-slate-700 text-xs font-medium flex items-center justify-between shadow-xs transition-colors cursor-pointer ${
+                        className={`w-full sm:w-[240px] px-4 py-2 rounded-xl border bg-white text-slate-700 text-xs font-medium flex items-center justify-between shadow-xs transition-colors cursor-pointer ${
                           errors.locationAddress
                             ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]'
                             : 'border-slate-400 hover:border-slate-500'
                         }`}
                       >
                         <span className={locationAddress ? 'text-slate-800 font-semibold' : 'text-slate-400 font-normal'}>
-                          {locationAddress || 'Select Location'}
+                          {locationAddress || t('kanban.interviewModal.selectLocation', 'Select Location')}
                         </span>
                         <ChevronDown
                           className={`w-4 h-4 text-slate-500 transition-transform ${
@@ -522,7 +515,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                       </button>
 
                       {locationDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-1.5 w-[200px] sm:w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                        <div className="absolute right-0 top-full mt-1.5 w-full sm:w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
                           <button
                             type="button"
                             onClick={() => {
@@ -532,7 +525,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                             }}
                             className="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-400 hover:bg-slate-50 cursor-pointer"
                           >
-                            Select Location
+                            {t('kanban.interviewModal.selectLocation', 'Select Location')}
                           </button>
                           {ANDIMA_BRANCHES.map((branch) => (
                             <button
@@ -540,7 +533,7 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                               type="button"
                               onClick={() => {
                                 setLocationAddress(branch);
-                                setLocationDropdownOpen(false);
+                                locationDropdownOpen && setLocationDropdownOpen(false);
                                 setErrors((prev) => {
                                   const next = { ...prev };
                                   delete next.locationAddress;
@@ -567,10 +560,10 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                 </div>
               ) : (
                 /* Online: Input Link with placeholder "input link" and empty default value */
-                <div className="flex items-start justify-between py-4">
-                  <span className="text-sm font-medium text-slate-700 pt-2">Meeting Link</span>
-                  <div className="flex flex-col items-end">
-                    <div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3.5 sm:py-4 gap-2">
+                  <span className="text-sm font-medium text-slate-700 pt-0 sm:pt-2">{t('kanban.interviewModal.meetLink', 'Meeting Link')}</span>
+                  <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
+                    <div className="w-full sm:w-auto">
                       <input
                         type="text"
                         value={meetLink}
@@ -584,8 +577,8 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                             });
                           }
                         }}
-                        placeholder="Input meeting link"
-                        className={`w-[200px] sm:w-[240px] px-3.5 py-2 rounded-xl border text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 placeholder:font-sans ${
+                        placeholder={t('kanban.interviewModal.inputMeetingLink', 'Input meeting link')}
+                        className={`w-full sm:w-[240px] px-3.5 py-2 rounded-xl border text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 placeholder:font-sans ${
                           errors.meetLink ? 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.3)]' : 'border-slate-300'
                         }`}
                       />
@@ -610,27 +603,27 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
             )}
 
             {/* Bottom Actions: Cancel & Send buttons matching screenshot */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-5 py-2 text-sm font-medium border rounded-xl text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2 text-sm font-medium border rounded-xl text-slate-700 hover:text-slate-900 transition-colors cursor-pointer text-center"
               >
-                Cancel
+                {t('kanban.interviewModal.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 rounded-xl bg-[#1d64f2] hover:bg-blue-700 text-white text-sm font-semibold shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2 rounded-xl bg-[#1d64f2] hover:bg-blue-700 text-white text-sm font-semibold shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Sending...</span>
+                    <span>{language === 'id' ? 'Mengirim...' : 'Sending...'}</span>
                   </>
                 ) : (
-                  <span>Send</span>
+                  <span>{t('kanban.interviewModal.send', 'Send')}</span>
                 )}
               </button>
             </div>

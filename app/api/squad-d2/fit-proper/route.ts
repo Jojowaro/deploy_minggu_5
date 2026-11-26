@@ -316,6 +316,7 @@ export async function POST(request: NextRequest) {
         oldStatus: 'assessment',
         actorName,
         reason: changeReason,
+        rejectedAtStage: 'Assessment',
         jobTitle: state.positionTitle,
       });
 

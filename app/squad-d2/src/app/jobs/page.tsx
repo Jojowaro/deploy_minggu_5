@@ -84,19 +84,19 @@ export default function JobListPage() {
       {/* <Header /> */}
 
       {/* Main Content Body */}
-      <main className="flex-1 px-4 sm:px-6 md:px-10 lg:px-12 py-8 max-w-7xl w-full mx-auto">
+      <main className="flex-1 px-3.5 sm:px-6 md:px-10 lg:px-12 py-5 sm:py-8 max-w-7xl w-full mx-auto">
         {/* Header Title & Description Section */}
-        <div className="mb-6">
-          <h1 className="text-[32px] font-bold text-slate-900 tracking-tight leading-tight">
+        <div className="mb-5 sm:mb-6">
+          <h1 className="text-2xl sm:text-[32px] font-bold text-slate-900 tracking-tight leading-tight">
             JOB LIST
           </h1>
-          <p className="text-sm text-slate-500 mt-1 font-normal">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
             Track and Trace all jobs posted at PT Andima Transportindo.
           </p>
         </div>
 
         {/* Search Input Bar (Client-side real-time filter) */}
-        <div className="mb-8 max-w-xl">
+        <div className="mb-6 sm:mb-8 max-w-xl">
           <SearchInput
             value={searchQuery}
             onChange={setSearchQuery}
@@ -127,11 +127,11 @@ export default function JobListPage() {
 
         {/* Loading Skeleton Indicator */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {[1, 2, 3, 4, 5, 6].map((idx) => (
               <div
                 key={`skeleton-${idx}`}
-                className="bg-white rounded-2xl border border-slate-200/80 p-6 h-72 animate-pulse flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 h-72 animate-pulse flex flex-col justify-between"
               >
                 <div>
                   <div className="h-4 bg-slate-200 rounded w-1/3 mb-3" />
@@ -156,7 +156,7 @@ export default function JobListPage() {
           </div>
         ) : filteredJobs.length === 0 ? (
           /* Empty Search Results State */
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center max-w-lg mx-auto shadow-sm my-12">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-8 sm:p-12 text-center max-w-lg mx-auto shadow-sm my-8 sm:my-12">
             <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
               <Briefcase className="w-7 h-7" />
             </div>
@@ -176,7 +176,7 @@ export default function JobListPage() {
           </div>
         ) : (
           /* Responsive Job Cards Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
             {filteredJobs.map((job) => (
               <JobCard
                 key={job.id}

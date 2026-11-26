@@ -170,7 +170,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[#07111F] text-[#0D1B2A] selection:bg-[#3B6FF5] selection:text-white font-[family-name:var(--font-montserrat)]">
+    <main className="relative min-h-screen w-full overflow-x-hidden overflow-y-auto bg-[#07111F] text-[#0D1B2A] selection:bg-[#3B6FF5] selection:text-white font-[family-name:var(--font-montserrat)] py-6 sm:py-10">
       <div className="absolute inset-0 z-0">
         <img
           src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=1600&auto=format&fit=crop"
@@ -203,17 +203,32 @@ export default function LoginPage() {
         </h1>
       </div>
 
-      <div className="relative z-10 h-full w-full flex items-center justify-start px-6 sm:px-12 lg:px-20">
-        <div className="w-full max-w-xl">
-          <div className="p-8 sm:p-11 rounded-3xl bg-gradient-to-b from-white/85 via-white/70 to-white/60 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(7,17,31,0.5),inset_0_2px_4px_rgba(255,255,255,0.9)] relative overflow-hidden">
+      <div className="relative z-10 min-h-[calc(100vh-3rem)] sm:min-h-[calc(100vh-5rem)] w-full flex items-center justify-center md:justify-start px-4 sm:px-8 md:px-12 lg:px-20">
+        <div className="w-full max-w-lg md:max-w-xl">
+          <div className="p-6 sm:p-9 md:p-11 rounded-3xl bg-gradient-to-b from-white/90 via-white/80 to-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(7,17,31,0.5),inset_0_2px_4px_rgba(255,255,255,0.9)] relative overflow-hidden">
             <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-gradient-to-b from-white/80 to-transparent blur-md pointer-events-none rounded-full" />
 
-            <div className="mb-7 text-left relative z-10">
+            {/* Mobile Header with Logo on small screens */}
+            <div className="flex md:hidden items-center gap-3 mb-6 relative z-10">
+              <Image
+                src={Logo}
+                alt="Logo PT. Andima Transportindo"
+                className="w-auto h-10 shrink-0"
+              />
+              <div className="min-w-0">
+                <h2 className="font-[family-name:var(--font-syne)] text-sm sm:text-base font-extrabold text-[#0D1B2A] leading-tight truncate">
+                  PT. ANDIMA TRANSPORTINDO
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium truncate">Logistics &amp; Recruitment Management</p>
+              </div>
+            </div>
+
+            <div className="mb-6 sm:mb-7 text-left relative z-10">
               <h2 className="font-[family-name:var(--font-syne)] text-xl sm:text-2xl font-bold text-[#0D1B2A] tracking-tight">
                 {greeting},
               </h2>
 
-              <p className="font-[family-name:var(--font-montserrat)] text-sm text-[#334155] mt-1.5 font-medium">
+              <p className="font-[family-name:var(--font-montserrat)] text-xs sm:text-sm text-[#334155] mt-1.5 font-medium">
                 Please sign in with your registered account to access the
                 dashboard.
               </p>

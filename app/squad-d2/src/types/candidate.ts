@@ -71,6 +71,9 @@ export interface Candidate {
   final_status?: 'in_progress' | 'accepted' | 'rejected' | 'hired';
   employee_tier?: EmployeeTier | string | null;
   employee_id?: string | null;
+  employee_user_id?: string | null;
+  initial_level?: string | null;
+  is_deleted?: boolean;
   parallel_applications_count?: number;
   created_at: string;
   updated_at: string;
@@ -104,11 +107,43 @@ export interface ApplicationHistoryItem {
   application_date: string;
   application_round: number;
   status: string;
+  rejected_at_stage?: string | null;
+  employee_user_id?: string | null;
+  initial_level?: string | null;
+  generated_user_id?: string | null;
+  employment_type?: string | null;
+  accepted_at?: string | null;
   assessment_score?: number | null;
   assessment_notes?: string | null;
   rejection_reason?: string | null;
   is_read_only: boolean;
   is_deleted?: boolean;
+}
+
+export interface Application {
+  application_id: string;
+  id: string;
+  candidate_id: string;
+  full_name: string;
+  email: string;
+  nik?: string | null;
+  phone_number?: string | null;
+  registration_way?: string | null;
+  cv_file_path?: string | null;
+  job_id?: string | null;
+  job_title: string;
+  application_date: string;
+  application_round: number;
+  status: string;
+  rejected_at_stage?: string | null;
+  employee_user_id?: string | null;
+  initial_level?: string | null;
+  assessment_score?: number | null;
+  assessment_notes?: string | null;
+  rejection_reason?: string | null;
+  is_read_only: boolean;
+  is_deleted?: boolean;
+  created_at?: string;
 }
 
 

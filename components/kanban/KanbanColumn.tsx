@@ -5,6 +5,7 @@ import { MoreVertical } from 'lucide-react';
 import { KanbanColumnConfig } from '@/app/squad-d2/src/types/kanban';
 import { CandidateWithJob, CandidateStatus } from '@/app/squad-d2/src/types/candidate';
 import { CandidateCard } from './CandidateCard';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface KanbanColumnProps {
   column: KanbanColumnConfig;
@@ -33,6 +34,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onDeleteColumn,
   onProcessHiring,
 }) => {
+  const { t } = useLanguage();
   const [isOver, setIsOver] = useState(false);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -87,7 +89,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         <div className="w-full bg-[#e7edf8] rounded-xl py-2 px-3 flex items-center justify-between transition-colors relative">
           <div className="flex-1 text-center pl-5">
             <span className="text-[13px] font-bold tracking-wider text-slate-700 uppercase">
-              {column.label}
+              {t(`kanban.columns.${column.id}`, column.label)}
             </span>
             <span className="ml-1.5 text-xs font-semibold text-slate-400">
               ({candidates.length})
@@ -124,7 +126,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
                   }}
                   className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
                 >
-                  Edit
+                  {t('common.edit', 'Edit')}
                 </button>
                 <button
                   type="button"
@@ -135,7 +137,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
                   }}
                   className="w-full px-4 py-2 text-left text-xs font-bold text-[#ea384c] hover:bg-red-50 transition-colors"
                 >
-                  Delete
+                  {t('common.delete', 'Hapus')}
                 </button>
               </div>
             )}
@@ -167,7 +169,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             }`}
           >
             <p className="text-xs font-medium">
-              {isOver ? 'Release to drop here' : 'No candidates'}
+              {isOver ? t('kanban.dropHere', 'Lepaskan untuk memindahkan') : t('kanban.noCandidates', 'Tidak ada kandidat')}
             </p>
           </div>
         )}

@@ -21,6 +21,7 @@ import { RegistrationWayUi, JobPost } from '../../types/candidate';
 import Header from '@/components/Header';
 import { DEFAULT_ACTIVE_JOB_POSTS } from '../../constants/jobs';
 import Link from 'next/link';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export interface SocialMediaItem {
   id: string;
@@ -40,6 +41,7 @@ const SOCIAL_MEDIA_OPTIONS = [
 
 function RegistrationFormContent() {
   const router = useRouter();
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const rawJobId = searchParams.get('jobId');
 
@@ -141,6 +143,18 @@ function RegistrationFormContent() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [openDropdownId]);
+
+  // Auto-scroll to top when server validation error (e.g. duplicate application) occurs
+  useEffect(() => {
+    if (serverError) {
+      const banner = document.getElementById('server-error-banner');
+      if (banner) {
+        banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [serverError]);
 
   // Find job information via /api/squad-d2/jobs endpoint if jobId is present
   useEffect(() => {
@@ -508,6 +522,14 @@ function RegistrationFormContent() {
             setClientErrors(mappedErrors);
           }
           setServerError(result.message || 'Gagal mengirim pendaftaran.');
+          setTimeout(() => {
+            const banner = document.getElementById('server-error-banner');
+            if (banner) {
+              banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }, 50);
         } else {
           setRegisteredEmailPopup(submittedEmail);
           setSuccessInfo({
@@ -529,21 +551,21 @@ function RegistrationFormContent() {
       {/* <Header /> */}
 
       {/* Main Page Body Container - Full Width from Left to Right */}
-      <main className="flex-1 flex flex-col min-w-0 w-full px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 sm:py-8">
+      <main className="flex-1 flex flex-col min-w-0 w-full px-3.5 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-8">
         {/* Back Link to Job List */}
         <div className="mb-4">
           <button
             type="button"
             onClick={() => router.push('/jobs')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Job List</span>
+            <span>{t('common.back', 'Kembali')}</span>
           </button>
         </div>
 
         {/* Page Title & Subtitle */}
-        <div className="mb-6">
+        <div className="mb-5 sm:mb-6">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0d1527] tracking-tight">
             REGISTRATION FORM
           </h1>
@@ -554,14 +576,14 @@ function RegistrationFormContent() {
 
         {/* Selected Job Post Banner */}
         {selectedJob && (
-          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-blue-50/90 border border-blue-200/90 text-blue-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs animate-in fade-in duration-200 w-full">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+          <div className="mb-5 sm:mb-6 p-3.5 sm:p-5 rounded-2xl bg-blue-50/90 border border-blue-200/90 text-blue-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs animate-in fade-in duration-200 w-full">
+            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                 <Briefcase className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
                     Selected Position
                   </span>
                   {selectedJob.location && (
@@ -585,7 +607,7 @@ function RegistrationFormContent() {
             <button
               type="button"
               onClick={() => router.push('/jobs')}
-              className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 transition-colors shrink-0 shadow-2xs self-end sm:self-center"
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 transition-colors shrink-0 shadow-2xs self-end sm:self-center cursor-pointer"
             >
               Change Position
             </button>
@@ -594,7 +616,7 @@ function RegistrationFormContent() {
 
         {/* Success Banner */}
         {successInfo && (
-          <div className="mb-6 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-4 shadow-xs animate-in fade-in duration-200 w-full">
+          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3 sm:gap-4 shadow-xs animate-in fade-in duration-200 w-full">
             <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-bold text-emerald-950 text-base">Pendaftaran Berhasil Terkirim!</h3>
@@ -608,7 +630,7 @@ function RegistrationFormContent() {
             <button
               type="button"
               onClick={() => setSuccessInfo(null)}
-              className="text-emerald-700 hover:text-emerald-950 p-1"
+              className="text-emerald-700 hover:text-emerald-950 p-1 cursor-pointer"
               aria-label="Tutup notifikasi sukses"
             >
               <X className="w-5 h-5" />
@@ -618,26 +640,30 @@ function RegistrationFormContent() {
 
         {/* Server Error Alert */}
         {serverError && (
-          <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3 shadow-xs animate-in fade-in duration-200 w-full">
+          <div
+            id="server-error-banner"
+            tabIndex={-1}
+            className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3 shadow-xs animate-in fade-in duration-200 w-full scroll-mt-28 outline-hidden"
+          >
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <h4 className="font-bold text-rose-950 text-sm">Gagal Mengirim Formulir</h4>
-              <p className="text-xs text-rose-800 mt-1">{serverError}</p>
+              <p className="text-xs text-rose-800 mt-1 leading-relaxed">{serverError}</p>
             </div>
             <button
               type="button"
               onClick={() => setServerError(null)}
-              className="text-rose-700 hover:text-rose-950 p-1"
+              className="text-rose-700 hover:text-rose-950 p-1 cursor-pointer"
               aria-label="Tutup pesan error"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         )}
 
         {/* Main White Card Container - Full Width */}
-        <div className="w-full bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8 md:p-10">
-          <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-6 sm:space-y-7 w-full">
+        <div className="w-full bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 sm:p-8 md:p-10">
+          <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-5 sm:space-y-7 w-full">
             {/* FIELD 1: FULL NAME */}
             <div id="field-fullName" className="w-full scroll-mt-28">
               <div className="flex items-center gap-2 mb-2">
@@ -648,7 +674,7 @@ function RegistrationFormContent() {
               </div>
 
               <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                className={`relative rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 w-full ${
                   clientErrors.fullName ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
                 }`}
               >
@@ -690,7 +716,7 @@ function RegistrationFormContent() {
               </div>
 
               <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                className={`relative rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 w-full ${
                   clientErrors.email ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
                 }`}
               >
@@ -733,7 +759,7 @@ function RegistrationFormContent() {
               </div>
 
               <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                className={`relative rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 w-full ${
                   clientErrors.nik ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
                 }`}
               >
@@ -777,7 +803,7 @@ function RegistrationFormContent() {
               </div>
 
               <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                className={`relative rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 w-full ${
                   clientErrors.phoneNumber ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
                 }`}
               >
@@ -837,7 +863,9 @@ function RegistrationFormContent() {
                           setOpenDropdownId((prev) => (prev === item.id ? null : item.id))
                         }
                         disabled={isPending}
-                        className="w-full h-14 md:h-16 px-5 bg-neutral-100 border border-neutral-700 rounded-2xl flex items-center justify-between shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus:outline-none focus:border-blue-600 transition-colors cursor-pointer select-none text-left"
+                        className={`w-full h-14 md:h-16 px-5 bg-[#F6F7FF] border border-neutral-700 rounded-2xl flex items-center justify-between shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus:outline-none focus:border-[#3b82f6] focus:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus:ring-2 focus:ring-[#3b82f6]/20 transition-all duration-150 cursor-pointer select-none text-left ${
+                          openDropdownId === item.id ? 'border-[#3b82f6] ring-2 ring-[#3b82f6]/20 shadow-[1px_3px_0px_rgba(59,130,246,0.6)] bg-[#0000]' : ''
+                        }`}
                       >
                         <span
                           className={
@@ -901,7 +929,7 @@ function RegistrationFormContent() {
 
                     {/* Handle or URL Input */}
                     <div
-                      className={`relative flex-1 rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 ${
+                      className={`relative flex-1 rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 ${
                         clientErrors.socialMedia && !item.handle.trim()
                           ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]'
                           : ''
@@ -968,7 +996,7 @@ function RegistrationFormContent() {
               </div>
 
               <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                className={`relative rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 w-full ${
                   clientErrors.portfolioUrl ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
                 }`}
               >
@@ -1010,7 +1038,7 @@ function RegistrationFormContent() {
               </div>
 
               <div
-                className={`relative rounded-2xl border border-neutral-700 bg-neutral-100 transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-blue-600 w-full ${
+                className={`relative rounded-2xl border border-neutral-700 bg-[#F6F7FF] transition-all duration-150 shadow-[1px_2px_0px_rgba(0,0,0,0.35)] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 focus-within:shadow-[1px_3px_0px_rgba(59,130,246,0.6)] focus-within:border-[#3b82f6] focus-within:ring-2 focus-within:ring-[#3b82f6]/20 w-full ${
                   clientErrors.skills ? 'border-rose-500 shadow-[1px_2px_0px_rgba(239,68,68,0.4)]' : ''
                 }`}
               >
@@ -1072,12 +1100,12 @@ function RegistrationFormContent() {
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative w-full rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center p-8 sm:p-12 md:p-14 cursor-pointer ${
+                className={`relative w-full rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center p-6 sm:p-10 md:p-14 cursor-pointer ${
                   dragActive
-                    ? 'border-blue-600 bg-blue-50/70 scale-[0.995]'
+                    ? 'border-[#3b82f6] bg-[#EEF2FF] shadow-[1px_3px_0px_rgba(59,130,246,0.6)] scale-[0.995]'
                     : clientErrors.cvFile
                     ? 'border-rose-500 bg-rose-50/30'
-                    : 'border-neutral-700 bg-neutral-200/80 hover:bg-neutral-200'
+                    : 'border-neutral-700 bg-[#F6F7FF] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 hover:shadow-[1px_2px_0px_rgba(59,130,246,0.35)]'
                 }`}
               >
                 <input
@@ -1096,7 +1124,7 @@ function RegistrationFormContent() {
                 {/* Upload Icon (Tray with arrow up) */}
                 <div className="mb-3 text-neutral-600 flex items-center justify-center">
                   <svg
-                    className="w-14 h-14"
+                    className="w-12 h-12 sm:w-14 sm:h-14"
                     viewBox="0 0 56 56"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
@@ -1125,8 +1153,8 @@ function RegistrationFormContent() {
                     onClick={(e) => e.stopPropagation()}
                     className="mt-4 flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-300 shadow-sm text-xs font-semibold text-slate-800 max-w-full"
                   >
-                    <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="truncate max-w-[200px] sm:max-w-xs md:max-w-md">{selectedFile.name}</span>
+                    <FileText className="w-4 h-4 text-[#3b82f6] shrink-0" />
+                    <span className="truncate max-w-[180px] sm:max-w-xs md:max-w-md">{selectedFile.name}</span>
                     <span className="text-slate-400 font-normal shrink-0">
                       ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
                     </span>
@@ -1174,12 +1202,12 @@ function RegistrationFormContent() {
                 onDragOver={handleCertDrag}
                 onDrop={handleCertDrop}
                 onClick={() => certFileInputRef.current?.click()}
-                className={`relative w-full rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center p-8 sm:p-12 md:p-14 cursor-pointer ${
+                className={`relative w-full rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center p-6 sm:p-10 md:p-14 cursor-pointer ${
                   dragActiveCert
-                    ? 'border-blue-600 bg-blue-50/70 scale-[0.995]'
+                    ? 'border-[#3b82f6] bg-[#EEF2FF] shadow-[1px_3px_0px_rgba(59,130,246,0.6)] scale-[0.995]'
                     : clientErrors.certificateFile
                     ? 'border-rose-500 bg-rose-50/30'
-                    : 'border-neutral-700 bg-neutral-200/80 hover:bg-neutral-200'
+                    : 'border-neutral-700 bg-[#F6F7FF] hover:border-[#3b82f6] hover:bg-[#EEF2FF]/60 hover:shadow-[1px_2px_0px_rgba(59,130,246,0.35)]'
                 }`}
               >
                 <input
@@ -1198,7 +1226,7 @@ function RegistrationFormContent() {
                 {/* Upload Icon (Tray with arrow up) */}
                 <div className="mb-3 text-neutral-600 flex items-center justify-center">
                   <svg
-                    className="w-14 h-14"
+                    className="w-12 h-12 sm:w-14 sm:h-14"
                     viewBox="0 0 56 56"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
@@ -1227,8 +1255,8 @@ function RegistrationFormContent() {
                     onClick={(e) => e.stopPropagation()}
                     className="mt-4 flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-300 shadow-sm text-xs font-semibold text-slate-800 max-w-full"
                   >
-                    <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="truncate max-w-[200px] sm:max-w-xs md:max-w-md">{certificateFile.name}</span>
+                    <FileText className="w-4 h-4 text-[#3b82f6] shrink-0" />
+                    <span className="truncate max-w-[180px] sm:max-w-xs md:max-w-md">{certificateFile.name}</span>
                     <span className="text-slate-400 font-normal shrink-0">
                       ({(certificateFile.size / (1024 * 1024)).toFixed(2)} MB)
                     </span>
@@ -1266,7 +1294,7 @@ function RegistrationFormContent() {
                 </label>
               </div>
 
-              <div className="flex items-center gap-8 pl-1">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-8 pl-1">
                 {/* Option 1: Scouting */}
                 <label className="flex items-center gap-2.5 cursor-pointer select-none group">
                   <div className="relative flex items-center justify-center">
@@ -1282,12 +1310,12 @@ function RegistrationFormContent() {
                     <div
                       className={`w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center ${
                         registrationWay === 'scouting'
-                          ? 'border-[#8b5cf6] bg-white'
-                          : 'border-slate-400 group-hover:border-slate-600 bg-white'
+                          ? 'border-[#3b82f6] bg-white'
+                          : 'border-slate-400 group-hover:border-[#3b82f6] bg-white'
                       }`}
                     >
                       {registrationWay === 'scouting' && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
                       )}
                     </div>
                   </div>
@@ -1309,12 +1337,12 @@ function RegistrationFormContent() {
                     <div
                       className={`w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center ${
                         registrationWay === 'recommendation'
-                          ? 'border-[#8b5cf6] bg-white'
-                          : 'border-slate-400 group-hover:border-slate-600 bg-white'
+                          ? 'border-[#3b82f6] bg-white'
+                          : 'border-slate-400 group-hover:border-[#3b82f6] bg-white'
                       }`}
                     >
                       {registrationWay === 'recommendation' && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
                       )}
                     </div>
                   </div>
@@ -1337,7 +1365,7 @@ function RegistrationFormContent() {
               <button
                 type="submit"
                 disabled={isPending}
-                className={`bg-[#1d4ed8] hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl px-12 py-3 shadow-md shadow-blue-500/20 transition-all duration-150 flex items-center justify-center gap-2 text-sm sm:text-base select-none ${
+                className={`w-full sm:w-auto bg-[#1d4ed8] hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl px-12 py-3 shadow-md shadow-blue-500/20 transition-all duration-150 flex items-center justify-center gap-2 text-sm sm:text-base select-none cursor-pointer ${
                   isPending ? 'opacity-70 cursor-not-allowed' : 'hover:scale-[1.01]'
                 }`}
               >
@@ -1362,7 +1390,7 @@ function RegistrationFormContent() {
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
         >
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-100 flex flex-col items-center text-center transform transition-all animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-[calc(100vw-32px)] sm:max-w-md rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-100 flex flex-col items-center text-center transform transition-all animate-in zoom-in-95 duration-200">
             {/* Tombol X untuk menutup pop up notif */}
             <button
               type="button"

@@ -173,14 +173,14 @@ export function CustomTable<T extends Record<string, any>>({
       </div>
 
       {/* Table Footer with Pagination matching Pagination Component */}
-      <div className="bg-[#FAFBFD] border-t border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="text-xs text-slate-500 font-medium">
+      <div className="bg-[#FAFBFD] border-t border-slate-200 px-3.5 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+        <div className="text-xs text-slate-500 font-medium text-center sm:text-left">
           Menampilkan <span className="font-semibold text-slate-800">1</span> sampai{" "}
           <span className="font-semibold text-slate-800">{Math.min(itemsPerPage, totalItems)}</span> dari{" "}
           <span className="font-semibold text-slate-800">{totalItems}</span> data
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center justify-center overflow-x-auto max-w-full">
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

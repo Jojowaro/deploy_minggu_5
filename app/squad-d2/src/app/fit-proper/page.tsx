@@ -35,10 +35,23 @@ import {
 import { CandidateWithJob, FitProperRequirement, RequirementStatus } from '../../types/candidate';
 import { createClient } from '@/utils/supabase/client';
 import { getAuthenticatedUserProfile, UserProfile, isHRManager, isHRRecruiter } from '@/utils/auth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+
+function formatOrdinal(n: number): string {
+  const pr = new Intl.PluralRules('en-US', { type: 'ordinal' });
+  const suffixes: Record<string, string> = {
+    one: 'st',
+    two: 'nd',
+    few: 'rd',
+    other: 'th',
+  };
+  return `${n}${suffixes[pr.select(n)] || 'th'}`;
+}
 
 type ActiveTab = 'general' | 'calculation' | 'rejected_history';
 
 function FitProperContent() {
+  const { language, t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const candidateId = searchParams.get('candidateId') || searchParams.get('id') || 'c-rusdi-default';
@@ -385,19 +398,20 @@ function FitProperContent() {
   // Derived formatting for General Information matching Image 1 & 2
   const formattedAppDate = useMemo(() => {
     const rawDate = candidate?.applied_at || candidate?.created_at;
-    if (!rawDate) return '19 Oktober 2026';
+    const defaultDate = language === 'id' ? '19 Oktober 2026' : 'October 19, 2026';
+    if (!rawDate) return defaultDate;
     try {
       const d = new Date(rawDate);
-      if (isNaN(d.getTime())) return '19 Oktober 2026';
-      return d.toLocaleDateString('id-ID', {
+      if (isNaN(d.getTime())) return defaultDate;
+      return d.toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
       });
     } catch {
-      return '19 Oktober 2026';
+      return defaultDate;
     }
-  }, [candidate?.applied_at, candidate?.created_at]);
+  }, [candidate?.applied_at, candidate?.created_at, language]);
 
   const isInterviewStage = useMemo(() => {
     const st = (candidate?.status || candidate?.stage || '').toLowerCase();
@@ -977,27 +991,27 @@ function FitProperContent() {
       <Header onMenuClick={() => window.dispatchEvent(new Event('toggle-sidebar'))} />
 
       {/* Main Container */}
-      <main className="flex-1 px-4 sm:px-6 md:px-8 lg:px-12 py-6 w-full max-w-[1400px] mx-auto flex flex-col">
+      <main className="flex-1 px-3 sm:px-6 md:px-8 lg:px-12 py-4 sm:py-6 w-full max-w-[1400px] mx-auto flex flex-col">
         {/* Navigation & Breadcrumbs */}
         <div className="mb-4 flex items-center justify-between">
           <button
             type="button"
             onClick={() => router.push('/kanban')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Kembali ke Recruitment Pipeline</span>
+            <span>{t('common.back', 'Kembali')}</span>
           </button>
         </div>
 
         {/* Page Title with Functional Qualification Matrix Definition */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0d1527] tracking-tight">
               FIT &amp; PROPER
             </h1>
             <p className="text-xs font-semibold text-slate-500 mt-0.5">
-              Qualification Matrix &amp; Employees Competency Chart (Matriks Komparasi Standar Posisi)
+              {t('fitProper.subtitle', 'Qualification Matrix & Employees Competency Chart (Matriks Komparasi Standar Posisi)')}
             </p>
           </div>
         </div>
@@ -1005,22 +1019,25 @@ function FitProperContent() {
         {/* ========================================================================= */}
         {/* BIG CARD CONTAINER (Light Blue/Lavender Background matching Image 2)      */}
         {/* ========================================================================= */}
-        <div className="flex-1 bg-[#eef4fe] rounded-3xl p-5 sm:p-7 md:p-9 border border-blue-100/70 shadow-sm flex flex-col">
+        <div className="flex-1 bg-[#eef4fe] rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 md:p-9 border border-blue-100/70 shadow-sm flex flex-col">
           {/* 1. Candidate Info Banner Card matching Image 2 */}
-          <div className="bg-transparent mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+          <div className="bg-transparent mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {/* Green circle avatar BS matching Image 2 */}
-              <div className="w-14 h-14 rounded-full bg-[#bbf7d0] text-[#15803d] font-bold text-lg flex items-center justify-center shrink-0 shadow-2xs">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#bbf7d0] text-[#15803d] font-bold text-base sm:text-lg flex items-center justify-center shrink-0 shadow-2xs">
                 {candidateInitials}
               </div>
               <div>
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
+                <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                  <h2 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
                     {candidateName}
                   </h2>
                   {(repeatInfo?.isRepeat || (candidate?.application_count || 1) >= 2) && (
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#d97706] text-white shadow-2xs">
-                      {repeatInfo?.label || `Pelamar ke-${candidate?.application_count || 2} Kali`}
+                      {t('kanban.card.nthApplicant', {
+                        count: candidate?.application_count || repeatInfo?.count || 2,
+                        ordinal: formatOrdinal(candidate?.application_count || repeatInfo?.count || 2),
+                      }, `${formatOrdinal(candidate?.application_count || repeatInfo?.count || 2)} Applicant`)}
                     </span>
                   )}
                 </div>
@@ -1048,7 +1065,7 @@ function FitProperContent() {
           {/* Role Access & Authority Banner */}
           {currentUser && (
             <div
-              className={`mb-6 p-4 rounded-2xl border text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
+              className={`mb-5 sm:mb-6 p-3.5 sm:p-4 rounded-2xl border text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
                 isManager
                   ? 'bg-purple-50/90 border-purple-200 text-purple-950'
                   : 'bg-amber-50/90 border-amber-200 text-amber-950'
@@ -1065,66 +1082,66 @@ function FitProperContent() {
                 <div>
                   <p className="font-bold">
                     {isManager
-                      ? `Role: HR Manager (${currentUser.name}) – Otoritas Pengambilan Keputusan Fit & Proper`
-                      : `Role: HR Recruiter (${currentUser.name}) – Mode Evaluasi & Pratinjau`}
+                      ? t('fitProper.authority.managerRole', { name: currentUser.name }, `Role: HR Manager (${currentUser.name}) – Otoritas Pengambilan Keputusan Fit & Proper`)
+                      : t('fitProper.authority.recruiterRole', { name: currentUser.name }, `Role: HR Recruiter (${currentUser.name}) – Mode Evaluasi & Pratinjau`)}
                   </p>
                   <p className="text-xs text-slate-600 mt-0.5">
                     {isManager
-                      ? 'Sebagai HR Manager, Anda berwenang mengatur kriteria kompetensi standar dan memutuskan status kandidat ("Lolos Fit & Proper" atau "Tolak") sesuai FR-D2-003.'
-                      : 'Sebagai HR Recruiter, Anda dapat meninjau kalkulasi kecocokan dan riwayat pelamar. Pengambilan keputusan akhir dan modifikasi ambang batas dikunci khusus untuk HR Manager (FR-D2-003).'}
+                      ? t('fitProper.authority.managerDesc', 'Sebagai HR Manager, Anda berwenang mengatur kriteria kompetensi standar dan memutuskan status kandidat ("Lolos Fit & Proper" atau "Tolak") sesuai FR-D2-003.')
+                      : t('fitProper.authority.recruiterDesc', 'Sebagai HR Recruiter, Anda dapat meninjau kalkulasi kecocokan dan riwayat pelamar. Pengambilan keputusan akhir dan modifikasi ambang batas dikunci khusus untuk HR Manager (FR-D2-003).')}
                   </p>
                 </div>
               </div>
               <span
-                className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shrink-0 ${
+                className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shrink-0 self-start sm:self-center ${
                   isManager ? 'bg-purple-200 text-purple-900' : 'bg-amber-200 text-amber-900'
                 }`}
               >
-                {isManager ? 'HR Manager Authority' : 'Recruiter Preview'}
+                {isManager ? t('fitProper.authority.managerBadge', 'HR Manager Authority') : t('fitProper.authority.recruiterBadge', 'Recruiter Preview')}
               </span>
             </div>
           )}
 
           {/* 2. Navigation Tabs Container: Capsule Pill matching UI/UX design */}
-          <div className="flex justify-center mb-8 w-full">
+          <div className="flex justify-center mb-6 sm:mb-8 w-full">
             <div className="inline-flex max-w-3xl w-full p-1 rounded-full bg-slate-100/90 border border-slate-200/90 shadow-inner">
               {/* Tab 1: General information */}
               <button
                 type="button"
                 onClick={() => setActiveTab('general')}
-                className={`flex-1 py-2.5 sm:py-3 px-4 rounded-l-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-2 sm:py-2.5 md:py-3 px-1.5 sm:px-3 md:px-4 rounded-l-full text-[11px] sm:text-xs md:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer leading-tight ${
                   activeTab === 'general'
                     ? 'bg-[#1E3765] text-white font-bold shadow-sm'
                     : 'text-slate-800 hover:text-slate-900 bg-transparent'
                 }`}
               >
-                General information
+                {t('fitProper.tabs.general', 'General information')}
               </button>
 
               {/* Tab 2: Fit & Proper Calculation */}
               <button
                 type="button"
                 onClick={() => setActiveTab('calculation')}
-                className={`flex-1 py-2.5 sm:py-3 px-4  text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-2 sm:py-2.5 md:py-3 px-1.5 sm:px-3 md:px-4 text-[11px] sm:text-xs md:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer leading-tight ${
                   activeTab === 'calculation'
                     ? 'bg-[#1E3765] text-white font-bold shadow-sm'
                     : 'text-slate-800 hover:text-slate-900 bg-transparent'
                 }`}
               >
-                Fit &amp; Proper Calculation
+                {t('fitProper.tabs.calculation', 'Fit & Proper Calculation')}
               </button>
 
               {/* Tab 3: Rejected History */}
               <button
                 type="button"
                 onClick={() => setActiveTab('rejected_history')}
-                className={`flex-1 py-2.5 sm:py-3 px-4 rounded-r-full text-xs sm:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-2 sm:py-2.5 md:py-3 px-1.5 sm:px-3 md:px-4 rounded-r-full text-[11px] sm:text-xs md:text-sm font-semibold flex items-center justify-center text-center transition-all duration-150 cursor-pointer leading-tight ${
                   activeTab === 'rejected_history'
                     ? 'bg-[#1E3765] text-white font-bold shadow-sm'
                     : 'text-slate-800 hover:text-slate-900 bg-transparent'
                 }`}
               >
-                Rejected History
+                {t('fitProper.tabs.rejectedHistory', 'Rejected History')}
               </button>
             </div>
           </div>
@@ -1133,34 +1150,35 @@ function FitProperContent() {
           {/* TAB CONTENT 1: FIT & PROPER CALCULATION (Image 1 & Image 2)               */}
           {/* ========================================================================= */}
           {activeTab === 'calculation' && (
-            <div className="flex-1 bg-white rounded-3xl p-6 sm:p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+            <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-7 md:p-10 shadow-sm border border-slate-100 flex flex-col">
               {/* Centered CALCULATION Title matching Image 1 */}
-              <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-wider text-center uppercase mb-8">
-                CALCULATION
+              <h3 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-wider text-center uppercase mb-6 sm:mb-8">
+                {t('fitProper.calculation.title', 'CALCULATION')}
               </h3>
 
               {/* Requirement Panel Card matching Image 1 */}
-              {/* <div className="bg-[#fbf9f8] sm:bg-[#faf7f5] rounded-2xl p-6 sm:p-7 border border-[#ede7e3] mb-6"> */}
               <div className='mb-6'>
-                <div className="mb-5">
+                <div className="mb-4 sm:mb-5">
                   <h4 className="text-base sm:text-lg font-bold text-[#71544d]">
-                    Requirement
+                    {t('fitProper.calculation.requirementSection', 'Requirement')}
                   </h4>
                   <p className="text-xs sm:text-sm font-medium text-[#9b8984]">
-                    Add the requirements met by the candidate
+                    {t('fitProper.calculation.requirementSubtitle', 'Add the requirements met by the candidate')}
                   </p>
                 </div>
 
                 {/* Tags on Page: Blue pill buttons with Name and Percentage matching Image */}
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-h-[44px]">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:gap-4 min-h-[44px]">
                   {isLoadingReqs ? (
                     <div className="text-xs text-slate-400 flex items-center gap-2 py-2">
                       <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                      <span>Memuat requirement...</span>
+                      <span>{t('common.loading', 'Memuat requirement...')}</span>
                     </div>
                   ) : activeTags.length === 0 ? (
                     <p className="text-xs sm:text-sm text-slate-400 italic py-1">
-                      Belum ada requirement yang dipilih. Klik kolom pencarian di bawah untuk menambahkan.
+                      {language === 'en'
+                        ? 'No requirements selected yet. Click the search bar below to add.'
+                        : 'Belum ada requirement yang dipilih. Klik kolom pencarian di bawah untuk menambahkan.'}
                     </p>
                   ) : (
                     activeTags.map((req) => (
@@ -1168,10 +1186,10 @@ function FitProperContent() {
                         key={req.id}
                         type="button"
                         onClick={() => handleOpenEditPercentage(req)}
-                        className="inline-flex items-center justify-between gap-5 bg-[#1d64f2] hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer group min-w-[135px] sm:min-w-[145px]"
-                        title="Klik untuk mengubah persentase atau menghapus requirement ini"
+                        className="inline-flex items-center justify-between gap-3 sm:gap-5 bg-[#1d64f2] hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs sm:text-sm px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer group min-w-[120px] sm:min-w-[145px]"
+                        title={language === 'en' ? 'Click to change percentage or remove this requirement' : 'Klik untuk mengubah persentase atau menghapus requirement ini'}
                       >
-                        <span>{req.name}</span>
+                        <span className="truncate max-w-[140px] sm:max-w-none">{req.name}</span>
                         <span className="font-bold flex items-center gap-1 shrink-0">
                           {req.percentage !== undefined ? `${req.percentage}%` : '50%'}
                           <ChevronDown className="w-3.5 h-3.5 opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -1197,7 +1215,7 @@ function FitProperContent() {
                       setIsSearchDropdownOpen(true);
                     }}
                     onFocus={() => setIsSearchDropdownOpen(true)}
-                    placeholder="Search by Requirement Set"
+                    placeholder={t('fitProper.calculation.searchRequirement', 'Search by Requirement Set')}
                     className="w-full h-11 pl-11 pr-10 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
                   />
                   {searchQuery && (
@@ -1219,14 +1237,14 @@ function FitProperContent() {
                   >
                     {/* Header line matching Image 2: All Requirement Set Options */}
                     <div className="px-5 py-3 text-xs sm:text-sm font-bold text-slate-800 border-b border-slate-100 bg-slate-50/70">
-                      All Requirement Set Options
+                      {language === 'en' ? 'All Requirement Set Options' : 'Semua Opsi Set Persyaratan'}
                     </div>
 
                     {filteredAvailableOptions.length === 0 ? (
                       <div className="px-5 py-6 text-center text-xs text-slate-400">
                         {searchQuery
-                          ? `Tidak ditemukan requirement dengan kata "${searchQuery}".`
-                          : 'Semua requirement sudah ditambahkan ke halaman.'}
+                          ? (language === 'en' ? `No requirements found matching "${searchQuery}".` : `Tidak ditemukan requirement dengan kata "${searchQuery}".`)
+                          : (language === 'en' ? 'All requirements have already been added to the page.' : 'Semua requirement sudah ditambahkan ke halaman.')}
                       </div>
                     ) : (
                       <div className="py-1">
@@ -1239,7 +1257,7 @@ function FitProperContent() {
                           >
                             <span>{req.name}</span>
                             <span className="text-[11px] font-medium text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                              + Input Persentase &amp; Tambah
+                              {language === 'en' ? '+ Input Percentage & Add' : '+ Input Persentase & Tambah'}
                             </span>
                           </button>
                         ))}
@@ -1250,21 +1268,21 @@ function FitProperContent() {
               </div>
 
               {/* Capability Fit Bar matching Image 1 */}
-              <div className="mt-auto bg-[#dce6fb] rounded-2xl p-4 sm:p-5 flex items-center justify-between border border-blue-200/80 shadow-2xs">
+              <div className="mt-auto bg-[#dce6fb] rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border border-blue-200/80 shadow-2xs">
                 <div className="flex items-center gap-2">
                   <span className="text-sm sm:text-base font-bold text-slate-900">
-                    Capability Fit
+                    {t('fitProper.calculation.capabilityFit', 'Capability Fit')}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-end gap-2">
                   {/* Status Pill Badge: UNFULLFILLED (Red) / FULLFILLED (Teal) */}
                   <div
-                    className={`px-6 sm:px-8 py-1.5 rounded-full text-xs sm:text-sm font-extrabold tracking-wider uppercase text-white shadow-xs transition-colors ${
+                    className={`px-5 sm:px-8 py-1.5 rounded-full text-xs sm:text-sm font-extrabold tracking-wider uppercase text-white shadow-xs transition-colors text-center ${
                       isCapabilityFit ? 'bg-[#0d9488]' : 'bg-[#e11d48]'
                     }`}
                   >
-                    {isCapabilityFit ? 'FULLFILLED' : 'UNFULLFILLED'}
+                    {isCapabilityFit ? t('fitProper.calculation.fulfilled', 'FULLFILLED') : t('fitProper.calculation.unfulfilled', 'UNFULLFILLED')}
                   </div>
 
                   {/* 3-dots button opening Capability Fit Setting Modal */}
@@ -1274,8 +1292,8 @@ function FitProperContent() {
                       setTempThreshold(threshold);
                       setIsSettingModalOpen(true);
                     }}
-                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-colors cursor-pointer"
-                    title={isManager ? "Capability Fit Setting (Kelola Kriteria & Ambang Batas)" : "Lihat Pengaturan Capability Fit"}
+                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-colors cursor-pointer shrink-0"
+                    title={isManager ? t('fitProper.calculation.settingTooltipManager', 'Capability Fit Setting (Kelola Kriteria & Ambang Batas)') : t('fitProper.calculation.settingTooltipViewer', 'Lihat Pengaturan Capability Fit')}
                     aria-label="Capability Fit Setting"
                   >
                     <MoreVertical className="w-4 h-4" />
@@ -1284,49 +1302,52 @@ function FitProperContent() {
               </div>
 
               {/* Decision Action Bar (FR-D2-003 FR-03.3 & FR-03.4) */}
-              <div className="mt-5 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="mt-5 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Keputusan Rekrutmen:
+                    {t('fitProper.calculation.recruitmentDecision', 'Keputusan Rekrutmen:')}
                   </span>
                   {candidate?.status === 'offered' && (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Kandidat Lolos Fit &amp; Proper</span>
+                      <span>{language === 'en' ? 'Candidate Passed Fit & Proper' : 'Kandidat Lolos Fit & Proper'}</span>
                     </span>
                   )}
                   {candidate?.status === 'rejected' && (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1.5">
                       <X className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Kandidat Ditolak</span>
+                      <span>{language === 'en' ? 'Candidate Rejected' : 'Kandidat Ditolak'}</span>
                     </span>
                   )}
                   {candidate?.status !== 'offered' && candidate?.status !== 'rejected' && (
                     <span className="text-xs text-slate-500 font-medium">
-                      Status kandidat saat ini: <strong className="text-slate-800 uppercase">{candidate?.status || 'Assessment'}</strong>
+                      {language === 'en' ? 'Current candidate status: ' : 'Status kandidat saat ini: '}
+                      <strong className="text-slate-800 uppercase">
+                        {t(`kanban.stages.${(candidate?.status || 'assessment').toLowerCase()}`, candidate?.status || 'Assessment')}
+                      </strong>
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 justify-end">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 justify-end">
                   {/* Button 1: Lolos Fit & Proper */}
                   <button
                     type="button"
                     disabled={!isManager || isDecisionPending}
                     onClick={() => setIsPassModalOpen(true)}
-                    className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-xs ${
+                    className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-xs ${
                       isManager
                         ? 'bg-[#0d9488] hover:bg-[#0f766e] active:scale-95 text-white cursor-pointer'
                         : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
                     }`}
                     title={
                       isManager
-                        ? 'Setujui kandidat ini lolos Fit & Proper (FR-03.3)'
-                        : 'Wewenang Terkunci: Hanya HR Manager yang berwenang mengambil keputusan Fit & Proper (FR-D2-003)'
+                        ? (language === 'en' ? 'Approve candidate to pass Fit & Proper (FR-03.3)' : 'Setujui kandidat ini lolos Fit & Proper (FR-03.3)')
+                        : (language === 'en' ? 'Locked: Only HR Manager is authorized to make Fit & Proper decisions (FR-D2-003)' : 'Wewenang Terkunci: Hanya HR Manager yang berwenang mengambil keputusan Fit & Proper (FR-D2-003)')
                     }
                   >
                     {isManager ? <Check className="w-4 h-4 stroke-[2.5]" /> : <Lock className="w-4 h-4 text-slate-400" />}
-                    <span>Lolos Fit &amp; Proper</span>
+                    <span>{t('fitProper.calculation.passButton', 'Lolos Fit & Proper')}</span>
                   </button>
 
                   {/* Button 2: Tolak */}
@@ -1334,19 +1355,19 @@ function FitProperContent() {
                     type="button"
                     disabled={!isManager || isDecisionPending}
                     onClick={() => setIsRejectModalOpen(true)}
-                    className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-xs ${
+                    className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-xs ${
                       isManager
                         ? 'bg-[#e11d48] hover:bg-rose-700 active:scale-95 text-white cursor-pointer'
                         : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
                     }`}
                     title={
                       isManager
-                        ? 'Tolak kandidat berdasarkan evaluasi kompetensi (FR-03.3)'
-                        : 'Wewenang Terkunci: Hanya HR Manager yang berwenang mengambil keputusan Fit & Proper (FR-D2-003)'
+                        ? (language === 'en' ? 'Reject candidate based on competency evaluation (FR-03.3)' : 'Tolak kandidat berdasarkan evaluasi kompetensi (FR-03.3)')
+                        : (language === 'en' ? 'Locked: Only HR Manager is authorized to make Fit & Proper decisions (FR-D2-003)' : 'Wewenang Terkunci: Hanya HR Manager yang berwenang mengambil keputusan Fit & Proper (FR-D2-003)')
                     }
                   >
                     {isManager ? <X className="w-4 h-4 stroke-[2.5]" /> : <Lock className="w-4 h-4 text-slate-400" />}
-                    <span>Tolak</span>
+                    <span>{t('fitProper.calculation.rejectButton', 'Tolak')}</span>
                   </button>
                 </div>
               </div>
@@ -1362,7 +1383,7 @@ function FitProperContent() {
               {/* Centered Title */}
               <div className="mb-6 text-center">
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-wider uppercase">
-                  REJECTED HISTORY
+                  {t('fitProper.tabs.rejectedHistory', 'REJECTED HISTORY').toUpperCase()}
                 </h3>
               </div>
 
@@ -1370,17 +1391,19 @@ function FitProperContent() {
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
                 {/* Header Row */}
                 <div className="bg-[#f1f5f9] px-6 py-3 flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
-                  <span>Position</span>
-                  <span className="mr-8">Evidence</span>
+                  <span>{language === 'en' ? 'Position' : 'Posisi'}</span>
+                  <span className="mr-8">{t('fitProper.settingModal.evidence', 'Evidence')}</span>
                 </div>
 
                 {/* Rows matching Image 5 & FR-D2-005 */}
                 {allRejectedHistory.length === 0 ? (
                   /* FR-D2-005 3.a.ii: Pesan standar jika tidak ada riwayat lamaran */
                   <div className="p-8 text-center text-xs text-slate-500">
-                    <p className="font-semibold text-slate-700">Tidak ada riwayat lamaran sebelumnya.</p>
+                    <p className="font-semibold text-slate-700">
+                      {language === 'en' ? 'No prior application history.' : 'Tidak ada riwayat lamaran sebelumnya.'}
+                    </p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Kandidat terdaftar sebagai pelamar pertama kali (First-Time Applicant).
+                      {language === 'en' ? 'Candidate is registered as a first-time applicant.' : 'Kandidat terdaftar sebagai pelamar pertama kali (First-Time Applicant).'}
                     </p>
                   </div>
                 ) : (
@@ -1396,9 +1419,14 @@ function FitProperContent() {
                           </span>
                           {/* FR-05.4 & FR-05.5: Assessment score & Rejection note */}
                           <div className="flex flex-wrap items-center gap-2 mt-1">
+                            {row.rejected_at_stage && (
+                              <span className="inline-block text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                {language === 'en' ? 'Stage:' : 'Tahap:'} {t(`kanban.stages.${row.rejected_at_stage.toLowerCase()}`, row.rejected_at_stage)}
+                              </span>
+                            )}
                             {row.assessment_score !== undefined && row.assessment_score !== null && (
                               <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                                Skor Asesmen: {row.assessment_score} / 100
+                                {language === 'en' ? 'Assessment Score:' : 'Skor Asesmen:'} {row.assessment_score} / 100
                               </span>
                             )}
                             {row.rejection_reason && (
@@ -1409,7 +1437,7 @@ function FitProperContent() {
                           </div>
                         </div>
                         <span className="bg-[#e11d48] text-white font-bold text-[11px] sm:text-xs px-5 py-1 rounded-full uppercase tracking-wider shadow-xs shrink-0 self-start sm:self-center">
-                          {row.status || 'REJECTED'}
+                          {t(`kanban.stages.${(row.status || 'rejected').toLowerCase()}`, row.status || 'REJECTED').toUpperCase()}
                         </span>
                       </div>
                     ))}
@@ -1419,9 +1447,17 @@ function FitProperContent() {
 
               {/* Additional candidate specific rejection log if candidate was rejected */}
               {candidate?.status === 'rejected' && candidate.rejection_reason && (
-                <div className="mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs">
-                  <span className="font-bold">Alasan Penolakan Terakhir: </span>
-                  <span>{candidate.rejection_reason}</span>
+                <div className="mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex flex-col gap-1">
+                  <div>
+                    <span className="font-bold">{language === 'en' ? 'Last Rejection Reason: ' : 'Alasan Penolakan Terakhir: '}</span>
+                    <span>{candidate.rejection_reason}</span>
+                  </div>
+                  {candidate.rejected_at_stage && (
+                    <div className="text-[11px] text-rose-700">
+                      <span className="font-semibold">{language === 'en' ? 'Rejection Stage: ' : 'Tahap Penolakan: '}</span>
+                      <span className="font-medium">{t(`kanban.stages.${candidate.rejected_at_stage.toLowerCase()}`, candidate.rejected_at_stage)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1431,9 +1467,9 @@ function FitProperContent() {
           {/* TAB CONTENT 3: GENERAL INFORMATION                                        */}
           {/* ========================================================================= */}
           {activeTab === 'general' && (
-            <div className="flex-1 bg-white rounded-3xl p-6 sm:p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+            <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
               {/* Form Grid 2 Kolom matching media_1794844951978_53119498.png */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-7 gap-x-10 lg:gap-x-16 max-w-4xl mx-auto w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-5 sm:gap-y-7 gap-x-6 lg:gap-x-16 max-w-4xl mx-auto w-full">
                 {/* Kolom Kiri 1: NAMA LENGKAP */}
                 <div className="flex items-center gap-3.5">
                   <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -1441,7 +1477,7 @@ function FitProperContent() {
                   </div>
                   <div>
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      NAMA LENGKAP
+                      {t('fitProper.fields.fullName', 'NAMA LENGKAP')}
                     </p>
                     <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
                       {candidate?.full_name || candidateName}
@@ -1456,7 +1492,7 @@ function FitProperContent() {
                   </div>
                   <div>
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      ALAMAT EMAIL
+                      {t('fitProper.fields.email', 'ALAMAT EMAIL')}
                     </p>
                     <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
                       {candidate?.email || '-'}
@@ -1471,7 +1507,7 @@ function FitProperContent() {
                   </div>
                   <div>
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      NOMOR TELEPON
+                      {t('fitProper.fields.phone', 'NOMOR TELEPON')}
                     </p>
                     <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
                       {candidate?.phone_number || '-'}
@@ -1486,7 +1522,7 @@ function FitProperContent() {
                   </div>
                   <div>
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      POSISI DILAMAR
+                      {t('fitProper.fields.appliedPosition', 'POSISI DILAMAR')}
                     </p>
                     <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
                       {displayJobApplied}
@@ -1501,10 +1537,12 @@ function FitProperContent() {
                   </div>
                   <div>
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      JALUR PENDAFTARAN
+                      {t('fitProper.fields.registrationMethod', 'JALUR PENDAFTARAN')}
                     </p>
                     <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
-                      {displayRegistrationWay}
+                      {displayRegistrationWay.toLowerCase().includes('recommend')
+                        ? t('fitProper.fields.recommendation', 'Recommendation')
+                        : t('fitProper.fields.scouting', 'Scouting / Interview')}
                     </p>
                   </div>
                 </div>
@@ -1516,11 +1554,11 @@ function FitProperContent() {
                   </div>
                   <div>
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      TAHAPAN REKRUTMEN
+                      {t('fitProper.fields.recruitmentStage', 'TAHAPAN REKRUTMEN')}
                     </p>
                     <div className="mt-1">
                       <span className="inline-block px-3.5 py-0.5 rounded-full text-xs font-bold uppercase bg-blue-100 text-blue-800 tracking-wider">
-                        {displayStage}
+                        {t(`kanban.columns.${displayStage.toLowerCase()}`, displayStage).toUpperCase()}
                       </span>
                     </div>
                   </div>
@@ -1533,7 +1571,7 @@ function FitProperContent() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                      SOCIAL MEDIA ACCOUNTS
+                      {t('fitProper.fields.socialMedia', 'SOCIAL MEDIA ACCOUNTS')}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {parsedSocialMedias.length > 0 ? (
@@ -1547,7 +1585,9 @@ function FitProperContent() {
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm font-medium text-slate-400 italic">Tidak dicantumkan</p>
+                        <p className="text-sm font-medium text-slate-400 italic">
+                          {language === 'en' ? 'Not provided' : 'Tidak dicantumkan'}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1560,7 +1600,7 @@ function FitProperContent() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      SKILL PORTOFOLIO
+                      {t('fitProper.fields.portfolio', 'SKILL PORTOFOLIO')}
                     </p>
                     <div className="mt-0.5">
                       <a
@@ -1568,7 +1608,7 @@ function FitProperContent() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs sm:text-sm font-bold text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1.5 transition-colors"
-                        title="Buka Portofolio di Tab Baru"
+                        title={language === 'en' ? 'Open Portfolio in New Tab' : 'Buka Portofolio di Tab Baru'}
                       >
                         <span className="truncate max-w-[200px] sm:max-w-xs">{candidatePortfolio}</span>
                         <ExternalLink className="w-3.5 h-3.5 shrink-0" />
@@ -1584,7 +1624,7 @@ function FitProperContent() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      SKILL DESCRIPTION
+                      {t('fitProper.fields.skills', 'SKILL DESCRIPTION')}
                     </p>
                     <p className="text-xs sm:text-sm font-medium text-slate-700 mt-1 leading-relaxed">
                       {candidateSkillDescription}
@@ -1600,7 +1640,7 @@ function FitProperContent() {
                   <div className="flex items-center gap-2.5">
                     <FileText className="w-5 h-5 text-blue-600 shrink-0" />
                     <span className="text-xs sm:text-sm font-semibold text-slate-700">
-                      Curriculum Vitae (PDF Document)
+                      {t('fitProper.fields.cvDocument', 'Curriculum Vitae (PDF Document)')}
                     </span>
                   </div>
                   <a
@@ -1608,7 +1648,7 @@ function FitProperContent() {
                     download
                     className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors inline-flex items-center justify-center cursor-pointer shrink-0"
                   >
-                    Unduh Dokumen CV
+                    {language === 'en' ? 'Download CV Document' : 'Unduh Dokumen CV'}
                   </a>
                 </div>
 
@@ -1618,7 +1658,7 @@ function FitProperContent() {
                     <div className="flex items-center gap-2.5">
                       <FileText className="w-5 h-5 text-blue-600 shrink-0" />
                       <span className="text-xs sm:text-sm font-semibold text-slate-700">
-                        Certificate (PDF Document)
+                        {t('fitProper.fields.certificateDocument', 'Certificate (PDF Document)')}
                       </span>
                     </div>
                     <a
@@ -1626,7 +1666,7 @@ function FitProperContent() {
                       download
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors inline-flex items-center justify-center cursor-pointer shrink-0"
                     >
-                      Unduh Dokumen Sertifikat
+                      {language === 'en' ? 'Download Certificate' : 'Unduh Dokumen Sertifikat'}
                     </a>
                   </div>
                 )}
@@ -1644,24 +1684,26 @@ function FitProperContent() {
                       </div>
                       <div>
                         <p className="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          METODE WAWANCARA
+                          {language === 'en' ? 'INTERVIEW METHOD' : 'METODE WAWANCARA'}
                         </p>
                         <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
-                          {interviewWay}
+                          {language === 'en'
+                            ? (interviewWay === 'Online' ? 'Online (Video Call)' : 'Onsite (Fleet Pool)')
+                            : (interviewWay === 'Online' ? 'Online (Panggilan Video)' : 'Onsite (Pool Armada)')}
                         </p>
                       </div>
                     </div>
 
                     {/* Sisi Kanan: Application Date */}
                     <div className="inline-flex items-center px-6 py-2.5 rounded-xl border border-slate-200/90 bg-slate-50/50 text-slate-500 font-bold text-xs sm:text-sm shadow-2xs shrink-0 self-center sm:self-auto">
-                      Application Date: {formattedAppDate}
+                      {language === 'en' ? 'Application Date:' : 'Tanggal Lamaran:'} {formattedAppDate}
                     </div>
                   </div>
                 ) : (
                   /* Ketika belum interview: Posisi Center */
                   <div className="mt-8 pt-6 border-t border-slate-100 flex justify-center items-center">
                     <div className="inline-flex items-center px-6 py-2.5 rounded-xl border border-slate-200/90 bg-slate-50/50 text-slate-500 font-bold text-xs sm:text-sm shadow-2xs">
-                      Application Date: {formattedAppDate}
+                      {language === 'en' ? 'Application Date:' : 'Tanggal Lamaran:'} {formattedAppDate}
                     </div>
                   </div>
                 )}
@@ -1676,7 +1718,7 @@ function FitProperContent() {
       {/* ========================================================================= */}
       {isSettingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-[calc(100vw-32px)] sm:max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 flex flex-col max-h-[90vh]">
             {/* Blue curved top header banner matching Image 3 */}
             <div className="h-16 bg-gradient-to-r from-[#155DFC]  to-[#142B45]  shadow-sm shrink-0 flex items-center justify-end px-6">
               <button
@@ -1688,7 +1730,7 @@ function FitProperContent() {
                   setIsThresholdSelectOpen(false);
                 }}
                 className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
-                title="Tutup"
+                title={t('common.close', 'Tutup')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1697,22 +1739,22 @@ function FitProperContent() {
             <div className="p-6 sm:p-8 pt-4 overflow-y-auto flex-1 space-y-6">
               {/* Centered Modal Title matching Image 3 */}
               <h3 className="text-xl sm:text-2xl font-black text-slate-900 text-center uppercase tracking-wide">
-                CAPABILITY FIT SETTING
+                {t('fitProper.settingModal.title', 'CAPABILITY FIT SETTING')}
               </h3>
 
               {/* Table condition vs evidence matching Image 3 */}
               <div className="rounded-2xl border border-slate-200 overflow-visible shadow-2xs relative z-30">
                 {/* Table Header */}
                 <div className="bg-[#f1f5f9] px-5 py-3 grid grid-cols-12 text-xs sm:text-sm font-bold text-slate-800 rounded-t-2xl">
-                  <div className="col-span-8">Condition</div>
-                  <div className="col-span-4 text-right sm:text-left sm:pl-3">Evidence</div>
+                  <div className="col-span-8">{t('fitProper.settingModal.condition', 'Condition')}</div>
+                  <div className="col-span-4 text-right sm:text-left sm:pl-3">{t('fitProper.settingModal.evidence', 'Evidence')}</div>
                 </div>
 
                 {/* Table Row */}
                 <div className="p-4 sm:p-5 bg-white grid grid-cols-12 items-center gap-3 rounded-b-2xl relative">
                   <div className="col-span-8 pr-2">
                     <p className="text-xs sm:text-sm text-slate-700 leading-relaxed italic">
-                      &ldquo;Percentage number of requirements that must be met to achieve FULLFILLED status&rdquo;
+                      {t('fitProper.settingModal.conditionText', '"Percentage number of requirements that must be met to achieve FULLFILLED status"')}
                     </p>
                   </div>
 
@@ -1724,7 +1766,7 @@ function FitProperContent() {
                         onClick={() => setIsThresholdSelectOpen(!isThresholdSelectOpen)}
                         className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 flex items-center justify-between gap-1.5 hover:border-slate-400 bg-white shadow-2xs cursor-pointer relative z-[9999]"
                       >
-                        <span>{tempThreshold ? `${tempThreshold}%` : 'Select Number'}</span>
+                        <span>{tempThreshold ? `${tempThreshold}%` : t('fitProper.settingModal.selectNumber', 'Select Number')}</span>
                         <ChevronDown
                           className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
                             isThresholdSelectOpen ? 'rotate-180' : ''
@@ -1765,12 +1807,12 @@ function FitProperContent() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h4 className="text-sm sm:text-base font-bold text-slate-900">
-                      Requirement List
+                      {t('fitProper.settingModal.requirementListTitle', 'Requirement List')}
                     </h4>
                     <p className="text-xs text-slate-500">
                       {isManager
-                        ? 'Kelola daftar seluruh requirements (kriteria) untuk kandidat'
-                        : 'Daftar seluruh requirement standar untuk posisi ini (Pratinjau)'}
+                        ? t('fitProper.settingModal.requirementListSubtitle', 'Kelola daftar seluruh requirements (kriteria) untuk kandidat')
+                        : (language === 'en' ? 'Standard requirements list for this position (Preview)' : 'Daftar seluruh requirement standar untuk posisi ini (Pratinjau)')}
                     </p>
                   </div>
 
@@ -1785,7 +1827,7 @@ function FitProperContent() {
                       className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Add Requirement</span>
+                      <span>{t('fitProper.settingModal.addRequirement', '+ Add Requirement')}</span>
                     </button>
                   )}
                 </div>
@@ -1800,7 +1842,7 @@ function FitProperContent() {
                       type="text"
                       value={newReqNameInModal}
                       onChange={(e) => setNewReqNameInModal(e.target.value)}
-                      placeholder="Masukkan nama requirement baru..."
+                      placeholder={language === 'en' ? 'Enter new requirement name...' : 'Masukkan nama requirement baru...'}
                       className="flex-1 w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       autoFocus
                       required
@@ -1811,14 +1853,14 @@ function FitProperContent() {
                         onClick={() => setIsAddingReqInModal(false)}
                         className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 cursor-pointer"
                       >
-                        Batal
+                        {t('common.cancel', 'Batal')}
                       </button>
                       <button
                         type="submit"
                         disabled={!newReqNameInModal.trim()}
                         className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 shadow-xs cursor-pointer"
                       >
-                        Simpan
+                        {t('common.save', 'Simpan')}
                       </button>
                     </div>
                   </form>
@@ -1828,7 +1870,9 @@ function FitProperContent() {
                 <div className="rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden bg-white shadow-2xs">
                   {activeRequirements.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-400">
-                      Belum ada requirement. {isManager && 'Klik tombol "Add Requirement" di atas untuk menambahkan.'}
+                      {language === 'en'
+                        ? 'No requirements yet. Click "Add Requirement" above to add.'
+                        : 'Belum ada requirement. Klik tombol "Add Requirement" di atas untuk menambahkan.'}
                     </div>
                   ) : (
                     activeRequirements.map((req) => {
@@ -1854,7 +1898,7 @@ function FitProperContent() {
                                 onClick={() => handleSaveEditRequirementInModal(req.id)}
                                 className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
                               >
-                                Simpan
+                                {t('common.save', 'Simpan')}
                               </button>
                               <button
                                 type="button"
@@ -1864,7 +1908,7 @@ function FitProperContent() {
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer"
                               >
-                                Batal
+                                {t('common.cancel', 'Batal')}
                               </button>
                             </div>
                           ) : (
@@ -1875,11 +1919,11 @@ function FitProperContent() {
                                 </span>
                                 {req.status === 'Fullfilled' ? (
                                   <span className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 px-2 py-0.5 rounded-full shrink-0">
-                                    Aktif di Halaman
+                                    {t('fitProper.settingModal.activeOnPage', 'Aktif di Halaman')}
                                   </span>
                                 ) : (
                                   <span className="text-[10px] font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
-                                    Di Dropdown Pool
+                                    {t('fitProper.settingModal.inDropdownPool', 'Di Dropdown Pool')}
                                   </span>
                                 )}
                               </div>
@@ -1894,8 +1938,8 @@ function FitProperContent() {
                                       setEditingReqNameInModal(req.name);
                                     }}
                                     className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                                    title="Edit Requirement"
-                                    aria-label="Edit Requirement"
+                                    title={language === 'en' ? 'Edit Requirement' : 'Ubah Persyaratan'}
+                                    aria-label={language === 'en' ? 'Edit Requirement' : 'Ubah Persyaratan'}
                                   >
                                     <Edit2 className="w-4 h-4" />
                                   </button>
@@ -1904,14 +1948,16 @@ function FitProperContent() {
                                     type="button"
                                     onClick={() => handleSoftDeleteRequirement(req)}
                                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                    title="Hapus Requirement (Soft Delete)"
-                                    aria-label="Hapus Requirement"
+                                    title={language === 'en' ? 'Delete Requirement' : 'Hapus Persyaratan'}
+                                    aria-label={language === 'en' ? 'Delete Requirement' : 'Hapus Persyaratan'}
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-slate-400 italic">Standar Tetap</span>
+                                <span className="text-[10px] text-slate-400 italic">
+                                  {language === 'en' ? 'Fixed Standard' : 'Standar Tetap'}
+                                </span>
                               )}
                             </>
                           )}
@@ -1926,10 +1972,13 @@ function FitProperContent() {
               <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">Simulasi Perhitungan Kandidat:</p>
+                  <p className="font-semibold">
+                    {language === 'en' ? 'Candidate Calculation Simulation:' : 'Simulasi Perhitungan Kandidat:'}
+                  </p>
                   <p className="mt-0.5 text-slate-600">
-                    Kandidat saat ini memenuhi {fulfilledCount} dari {totalActiveCount} requirement (
-                    {currentPercentage}%). Status target ({tempThreshold}%):&nbsp;
+                    {language === 'en'
+                      ? `Candidate currently meets ${fulfilledCount} of ${totalActiveCount} requirements (${currentPercentage}%). Target threshold (${tempThreshold}%): `
+                      : `Kandidat saat ini memenuhi ${fulfilledCount} dari ${totalActiveCount} requirement (${currentPercentage}%). Status target (${tempThreshold}%): `}
                     <strong
                       className={`font-bold ${
                         currentPercentage >= (Number(tempThreshold) || 0)
@@ -1938,8 +1987,8 @@ function FitProperContent() {
                       }`}
                     >
                       {currentPercentage >= (Number(tempThreshold) || 0)
-                        ? 'FULLFILLED'
-                        : 'UNFULLFILLED'}
+                        ? t('fitProper.calculation.fulfilled', 'FULLFILLED')
+                        : t('fitProper.calculation.unfulfilled', 'UNFULLFILLED')}
                     </strong>
                   </p>
                 </div>
@@ -1952,7 +2001,11 @@ function FitProperContent() {
                 <>
                   <div className="flex items-center gap-1.5 text-xs text-amber-800 font-medium">
                     <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>Mode Pratinjau: Wewenang pengubahan standar dimiliki oleh HR Manager.</span>
+                    <span>
+                      {language === 'en'
+                        ? 'Preview Mode: Standard configuration authority belongs to HR Manager.'
+                        : 'Mode Pratinjau: Wewenang pengubahan standar dimiliki oleh HR Manager.'}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -1962,7 +2015,7 @@ function FitProperContent() {
                     }}
                     className="px-5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 transition-colors cursor-pointer"
                   >
-                    Tutup
+                    {t('common.close', 'Tutup')}
                   </button>
                 </>
               ) : (
@@ -1977,14 +2030,14 @@ function FitProperContent() {
                     }}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
                   >
-                    Batal
+                    {t('common.cancel', 'Batal')}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSaveSetting()}
                     className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-95 cursor-pointer"
                   >
-                    Simpan Pengaturan
+                    {t('fitProper.settingModal.saveSettings', 'Simpan Pengaturan')}
                   </button>
                 </>
               )}
@@ -1998,10 +2051,10 @@ function FitProperContent() {
       {/* ========================================================================= */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-[calc(100vw-32px)] sm:max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900">
-                Tambah Requirement Baru
+                {language === 'en' ? 'Add New Requirement' : 'Tambah Requirement Baru'}
               </h3>
               <button
                 type="button"
@@ -2015,13 +2068,13 @@ function FitProperContent() {
             <form onSubmit={handleAddNewRequirement} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Nama Requirement
+                  {language === 'en' ? 'Requirement Name' : 'Nama Requirement'}
                 </label>
                 <input
                   type="text"
                   value={newRequirementName}
                   onChange={(e) => setNewRequirementName(e.target.value)}
-                  placeholder="Contoh: Problem Solving, Komunikasi, Sertifikasi AWS"
+                  placeholder={language === 'en' ? 'e.g. Problem Solving, Communication, AWS Certification' : 'Contoh: Problem Solving, Komunikasi, Sertifikasi AWS'}
                   className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   autoFocus
                   required
@@ -2034,14 +2087,14 @@ function FitProperContent() {
                   onClick={() => setIsAddModalOpen(false)}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
                 >
-                  Batal
+                  {t('common.cancel', 'Batal')}
                 </button>
                 <button
                   type="submit"
                   disabled={!newRequirementName.trim()}
                   className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
                 >
-                  Tambah Requirement
+                  {language === 'en' ? 'Add Requirement' : 'Tambah Requirement'}
                 </button>
               </div>
             </form>
@@ -2054,10 +2107,10 @@ function FitProperContent() {
       {/* ========================================================================= */}
       {editingRequirement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-[calc(100vw-32px)] sm:max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900">
-                Edit Requirement
+                {language === 'en' ? 'Edit Requirement' : 'Edit Requirement'}
               </h3>
               <button
                 type="button"
@@ -2071,13 +2124,13 @@ function FitProperContent() {
             <form onSubmit={handleSaveEditRequirement} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Nama Requirement
+                  {language === 'en' ? 'Requirement Name' : 'Nama Requirement'}
                 </label>
                 <input
                   type="text"
                   value={editRequirementName}
                   onChange={(e) => setEditRequirementName(e.target.value)}
-                  placeholder="Nama Requirement..."
+                  placeholder={language === 'en' ? 'Requirement Name...' : 'Nama Requirement...'}
                   className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   autoFocus
                   required
@@ -2090,14 +2143,14 @@ function FitProperContent() {
                   onClick={() => setEditingRequirement(null)}
                   className="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
                 >
-                  Batal
+                  {t('common.cancel', 'Batal')}
                 </button>
                 <button
                   type="submit"
                   disabled={!editRequirementName.trim()}
                   className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
                 >
-                  Simpan Perubahan
+                  {t('common.save', 'Simpan Perubahan')}
                 </button>
               </div>
             </form>
@@ -2110,14 +2163,14 @@ function FitProperContent() {
       {/* ========================================================================= */}
       {isPassModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-[calc(100vw-32px)] sm:max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Konfirmasi Lolos Fit &amp; Proper
+                  {t('fitProper.passModal.title', 'Konfirmasi Lolos Fit & Proper')}
                 </h3>
               </div>
               <button
@@ -2131,16 +2184,16 @@ function FitProperContent() {
 
             <div className="space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Sebagai <strong>HR Manager</strong>, apakah Anda yakin ingin menetapkan kandidat <strong>{candidateName}</strong> sebagai <em>Lolos Fit &amp; Proper</em>?
+                {t('fitProper.passModal.confirmQuestion', { name: candidateName }, `Sebagai HR Manager, apakah Anda yakin ingin menetapkan kandidat ${candidateName} sebagai Lolos Fit & Proper?`)}
               </p>
 
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 space-y-1">
                 <p className="font-bold flex items-center justify-between">
-                  <span>Pencapaian Kualifikasi:</span>
-                  <span>{currentPercentage}% / Target {threshold}%</span>
+                  <span>{t('fitProper.passModal.qualificationAchievement', 'Pencapaian Kualifikasi:')}</span>
+                  <span>{currentPercentage}% / {t('fitProper.passModal.target', 'Target')} {threshold}%</span>
                 </p>
                 <p className="text-[11px] text-emerald-700">
-                  Status kandidat di database akan diperbarui ke tahapan penawaran (Offered) dan dicatat pada audit log.
+                  {t('fitProper.passModal.databaseNote', 'Status kandidat di database akan diperbarui ke tahapan penawaran (Offered) dan dicatat pada audit log.')}
                 </p>
               </div>
 
@@ -2150,7 +2203,7 @@ function FitProperContent() {
                   onClick={() => setIsPassModalOpen(false)}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
-                  Batal
+                  {t('common.cancel', 'Batal')}
                 </button>
                 <button
                   type="button"
@@ -2161,7 +2214,7 @@ function FitProperContent() {
                   }}
                   className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0d9488] hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                 >
-                  {isDecisionPending ? 'Menyimpan...' : 'Setujui Lolos'}
+                  {isDecisionPending ? t('common.loading', 'Menyimpan...') : t('fitProper.passModal.approvePass', 'Setujui Lolos')}
                 </button>
               </div>
             </div>
@@ -2174,10 +2227,10 @@ function FitProperContent() {
       {/* ========================================================================= */}
       {isRejectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-[calc(100vw-32px)] sm:max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900">
-                Konfirmasi Penolakan Kandidat
+                {t('fitProper.rejectModal.title', 'Konfirmasi Penolakan Kandidat')}
               </h3>
               <button
                 type="button"
@@ -2190,18 +2243,18 @@ function FitProperContent() {
 
             <div className="space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Apakah Anda yakin ingin menolak kandidat <strong>{candidateName}</strong>? Status pelamar akan diubah ke <em>Rejected</em> dan dicatat pada audit log.
+                {t('fitProper.rejectModal.confirmQuestion', { name: candidateName }, `Apakah Anda yakin ingin menolak kandidat ${candidateName}? Status pelamar akan diubah ke Rejected dan dicatat pada audit log.`)}
               </p>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Alasan Penolakan (Catatan Fit &amp; Proper)
+                  {t('fitProper.rejectModal.rejectionReasonLabel', 'Alasan Penolakan (Catatan Fit & Proper)')}
                 </label>
                 <textarea
                   rows={3}
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder={`Contoh: Kualifikasi teknis belum memenuhi target minimal ${threshold}% (${missingRequirements} syarat belum terpenuhi).`}
+                  placeholder={t('fitProper.rejectModal.rejectionReasonPlaceholder', { threshold, missing: missingRequirements }, `Contoh: Kualifikasi teknis belum memenuhi target minimal ${threshold}% (${missingRequirements} syarat belum terpenuhi).`)}
                   className="w-full p-3 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                 />
               </div>
@@ -2212,7 +2265,7 @@ function FitProperContent() {
                   onClick={() => setIsRejectModalOpen(false)}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
                 >
-                  Batal
+                  {t('common.cancel', 'Batal')}
                 </button>
                 <button
                   type="button"
@@ -2220,7 +2273,7 @@ function FitProperContent() {
                   onClick={() => handleExecuteDecision('Tolak', rejectReason)}
                   className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#e11d48] hover:bg-rose-700 transition-colors shadow-sm disabled:opacity-50"
                 >
-                  {isDecisionPending ? 'Menyimpan...' : 'Konfirmasi Tolak'}
+                  {isDecisionPending ? t('common.loading', 'Menyimpan...') : t('fitProper.rejectModal.confirmReject', 'Konfirmasi Tolak')}
                 </button>
               </div>
             </div>
@@ -2234,12 +2287,12 @@ function FitProperContent() {
       {percentageModalTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div
-            className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200"
+            className="bg-white rounded-3xl p-5 sm:p-7 max-w-[calc(100vw-32px)] sm:max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900">
-                {percentageModalTarget.isEditing ? 'Ubah Persentase Requirement' : 'Input Persentase Requirement'}
+                {percentageModalTarget.isEditing ? t('fitProper.percentageModal.editTitle', 'Ubah Persentase Requirement') : t('fitProper.percentageModal.inputTitle', 'Input Persentase Requirement')}
               </h3>
               <button
                 type="button"
@@ -2252,9 +2305,7 @@ function FitProperContent() {
 
             <div className="mb-4">
               <p className="text-xs text-slate-500 mb-2">
-                {percentageModalTarget.isEditing
-                  ? 'Perbarui persentase pemenuhan untuk requirement:'
-                  : 'Tentukan persentase pemenuhan untuk requirement:'}
+                {t('fitProper.percentageModal.subtitle', 'Perbarui persentase pemenuhan untuk requirement:')}
               </p>
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm border border-blue-100">
                 <span>{percentageModalTarget.requirement.name}</span>
@@ -2264,7 +2315,7 @@ function FitProperContent() {
             <form onSubmit={handleSavePercentage} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Persentase Pemenuhan (0 - 100%)
+                  {t('fitProper.percentageModal.percentageLabel', 'Persentase Pemenuhan (0 - 100%)')}
                 </label>
                 <div className="flex items-center justify-center gap-2 py-2">
                   <input
@@ -2311,7 +2362,7 @@ function FitProperContent() {
                     }}
                     className="px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
                   >
-                    Hapus dari Halaman
+                    {t('fitProper.percentageModal.removeFromPage', 'Hapus dari Halaman')}
                   </button>
                 ) : (
                   <div />
@@ -2323,13 +2374,13 @@ function FitProperContent() {
                     onClick={() => setPercentageModalTarget(null)}
                     className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
                   >
-                    Batal
+                    {t('common.cancel', 'Batal')}
                   </button>
                   <button
                     type="submit"
                     className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1d64f2] hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
                   >
-                    {percentageModalTarget.isEditing ? 'Simpan' : 'Tambahkan'}
+                    {percentageModalTarget.isEditing ? t('fitProper.percentageModal.save', 'Simpan') : t('fitProper.percentageModal.add', 'Tambahkan')}
                   </button>
                 </div>
               </div>

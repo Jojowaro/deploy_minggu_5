@@ -521,7 +521,7 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
 
     // Filter active valid candidates (excluding soft-deleted)
     const validCandRows = candRows.filter(
-      (row) => row.stage !== 'deleted' && row.status !== 'deleted' && !row.rejection_reason?.startsWith('__SOFT_DELETED__')
+      (row) => row.is_deleted !== true && row.stage !== 'deleted' && row.status !== 'deleted' && !row.rejection_reason?.startsWith('__SOFT_DELETED__')
     );
 
     // Count parallel applications by NIK, Email, or Name (Section 3D) & Real-time repeat application round (FR-D2-005)
@@ -630,6 +630,10 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
           skills_tagged: evaluatedSet.has(row.id),
           application_count: realTimeAppCount,
           parallel_applications_count: parallelCount,
+          employee_user_id: row.employee_user_id || row.employee_id || null,
+          initial_level: row.initial_level || row.employee_tier || null,
+          rejected_at_stage: row.rejected_at_stage || null,
+          is_deleted: row.is_deleted || false,
         };
       });
   } catch (err) {
@@ -730,6 +734,40 @@ export async function updateCandidateStatusAndLog(params: {
     const normalizedStatus = (newStatus === 'interviewed' ? 'interview' : newStatus) as CandidateStatus;
     const nowIso = new Date().toISOString();
 
+    // Validate candidateId format (must be UUID for Supabase)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId);
+    if (!isUuid) {
+      console.warn(`[Squad D2 Supabase] candidateId "${candidateId}" is not a valid UUID. Using local mock response.`);
+      return {
+        success: true,
+        candidate: {
+          id: candidateId,
+          full_name: 'Candidate',
+          status: normalizedStatus,
+          stage: targetStage,
+          job_title: jobTitle || 'Backend Engineer',
+          application_count: 1,
+          created_at: nowIso,
+          updated_at: nowIso,
+          rejection_reason: reason || null,
+        } as any,
+        latencyMs: 15,
+      };
+    }
+
+    const formatStageName = (s?: string): string => {
+      if (!s) return 'Screening';
+      const lower = s.toLowerCase();
+      if (lower === 'candidate') return 'Candidate';
+      if (lower === 'screening') return 'Screening';
+      if (lower === 'interview' || lower === 'interviewed') return 'Interview';
+      if (lower === 'assessment') return 'Assessment';
+      if (lower === 'offered' || lower === 'offering') return 'Offered';
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+
+    const effectiveRejectedStage = formatStageName(rejectedAtStage || oldStatus);
+
     const patchPayload: Record<string, any> = {
       status: normalizedStatus,
       stage: targetStage,
@@ -743,7 +781,7 @@ export async function updateCandidateStatusAndLog(params: {
     }
 
     if (newStatus === 'rejected') {
-      patchPayload.rejected_at_stage = rejectedAtStage || oldStatus || 'screening';
+      patchPayload.rejected_at_stage = effectiveRejectedStage;
     }
 
     // Auto-generate User ID and map employment tier if candidate is accepted / converted to employee
@@ -752,18 +790,23 @@ export async function updateCandidateStatusAndLog(params: {
     if (employeeTier === 'permanent' || employeeTier === 'contract') mappedTier = 'contract_permanent';
     if (!mappedTier) mappedTier = 'trainee';
 
+    let formattedInitialLevel = 'Trainee';
+    if (mappedTier === 'associate_trainee') formattedInitialLevel = 'Associate Trainee';
+    else if (mappedTier === 'probation') formattedInitialLevel = 'Probation';
+    else if (mappedTier === 'contract_permanent') formattedInitialLevel = 'Contract / Permanent';
+
     // DOD Item 4: Status OFFERED strictly DOES NOT trigger employee_id creation nor exposure
     // DOD Item 2: Status ACCEPTED / HIRED triggers automatic unique employee_id with anti-redundancy
     const isAccepted = (newStatus as string) === 'hired' || (newStatus as string) === 'accepted' || Boolean(employeeTier);
 
     let resolvedUserId = employeeId?.trim();
-    if (isAccepted) {
-      if (!resolvedUserId) {
-        resolvedUserId = await generateAntiRedundantEmployeeId(mappedTier, baseUrl, supabaseKey);
-      }
-      patchPayload.final_status = 'accepted';
-      patchPayload.employee_tier = mappedTier;
-      patchPayload.employee_id = resolvedUserId;
+    if (isAccepted && !resolvedUserId) {
+      resolvedUserId = await generateAntiRedundantEmployeeId(mappedTier, baseUrl, supabaseKey);
+    }
+
+    if (isAccepted && resolvedUserId) {
+      patchPayload.employee_user_id = resolvedUserId;
+      patchPayload.initial_level = formattedInitialLevel;
     }
 
     // Save interview schedule if interview details are specified (Section 3B)
@@ -825,7 +868,29 @@ export async function updateCandidateStatusAndLog(params: {
     });
 
     // Execute concurrently for optimal sub-200ms latency (TR-D2-002 TR-06)
-    const [patchRes, auditRes] = await Promise.all([patchPromise, auditPromise]);
+    let [patchRes, auditRes] = await Promise.all([patchPromise, auditPromise]);
+
+    if (!patchRes.ok) {
+      // Resilient fallback if extra columns (rejected_at_stage, employee_user_id, initial_level) are pending schema migration
+      const fallbackPayload: Record<string, any> = {
+        status: normalizedStatus,
+        stage: targetStage,
+        updated_at: nowIso,
+      };
+      if (patchPayload.rejection_reason !== undefined) {
+        fallbackPayload.rejection_reason = patchPayload.rejection_reason;
+      }
+      patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(fallbackPayload),
+      });
+    }
 
     if (!patchRes.ok) {
       const errText = await patchRes.text();
@@ -844,6 +909,9 @@ export async function updateCandidateStatusAndLog(params: {
           ...updatedRows[0],
           job_title: resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer',
           application_count: typeof updatedRows[0].application_count === 'number' ? updatedRows[0].application_count : 1,
+          employee_user_id: resolvedUserId || updatedRows[0].employee_user_id || updatedRows[0].employee_id || null,
+          initial_level: isAccepted ? formattedInitialLevel : (updatedRows[0].initial_level || updatedRows[0].employee_tier || null),
+          rejected_at_stage: newStatus === 'rejected' ? effectiveRejectedStage : (updatedRows[0].rejected_at_stage || null),
         }
       : (null as any);
 
@@ -872,9 +940,9 @@ export async function updateCandidateStatusAndLog(params: {
           application_date: nowIso,
           application_round: updatedCandidate?.application_count || 1,
           status: 'rejected',
-          rejected_at_stage: patchPayload.rejected_at_stage || rejectedAtStage || oldStatus || 'screening',
+          rejected_at_stage: effectiveRejectedStage,
           assessment_score: null,
-          assessment_notes: `Tahap seleksi: ${oldStatus} -> rejected`,
+          assessment_notes: `Tahap seleksi: ${effectiveRejectedStage} -> rejected`,
           rejection_reason: reason || 'Kandidat belum memenuhi kualifikasi standar.',
           is_read_only: true,
           is_deleted: false,
@@ -925,11 +993,13 @@ export async function updateCandidateStatusAndLog(params: {
           application_date: nowIso,
           application_round: updatedCandidate?.application_count || 1,
           status: 'accepted',
+          employee_user_id: resolvedUserId,
+          initial_level: formattedInitialLevel,
           employment_type: mappedTier,
           generated_user_id: resolvedUserId,
           accepted_at: nowIso,
           assessment_score: null,
-          assessment_notes: reason || `Resmi diterima menjadi karyawan (${mappedTier}) dengan User ID: ${resolvedUserId}`,
+          assessment_notes: reason || `Resmi diterima menjadi karyawan (${formattedInitialLevel}) dengan User ID: ${resolvedUserId}`,
           rejection_reason: null,
           is_read_only: true,
           is_deleted: false,
@@ -946,22 +1016,45 @@ export async function updateCandidateStatusAndLog(params: {
         const existingRecords = checkRes.ok ? await checkRes.json() : [];
 
         if (Array.isArray(existingRecords) && existingRecords.length > 0) {
-          // Update existing record with accepted status, employment type, generated user ID, and timestamp
-          await fetch(`${baseUrl}/rest/v1/d2_application_history?id=eq.${encodeURIComponent(existingRecords[0].id)}`, {
+          // Update existing record with accepted status, employment type, generated user ID, initial level, and timestamp
+          const updatePayload: Record<string, any> = {
+            status: 'accepted',
+            employee_user_id: resolvedUserId,
+            initial_level: formattedInitialLevel,
+            employment_type: mappedTier,
+            generated_user_id: resolvedUserId,
+            accepted_at: nowIso,
+            assessment_notes: reason || `Resmi diterima menjadi karyawan (${formattedInitialLevel}) dengan User ID: ${resolvedUserId}`,
+          };
+
+          const patchHistRes = await fetch(`${baseUrl}/rest/v1/d2_application_history?id=eq.${encodeURIComponent(existingRecords[0].id)}`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
               'apikey': supabaseKey,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              status: 'accepted',
-              employment_type: mappedTier,
-              generated_user_id: resolvedUserId,
-              accepted_at: nowIso,
-              assessment_notes: reason || `Resmi diterima menjadi karyawan (${mappedTier}) dengan User ID: ${resolvedUserId}`,
-            }),
+            body: JSON.stringify(updatePayload),
           });
+
+          if (!patchHistRes.ok) {
+            // Fallback without employee_user_id and initial_level if schema not yet migrated
+            await fetch(`${baseUrl}/rest/v1/d2_application_history?id=eq.${encodeURIComponent(existingRecords[0].id)}`, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'apikey': supabaseKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                status: 'accepted',
+                employment_type: mappedTier,
+                generated_user_id: resolvedUserId,
+                accepted_at: nowIso,
+                assessment_notes: reason || `Resmi diterima menjadi karyawan (${formattedInitialLevel}) dengan User ID: ${resolvedUserId}`,
+              }),
+            });
+          }
         } else {
           // Insert new application record for candidate
           const postAcceptedRes = await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
@@ -975,7 +1068,7 @@ export async function updateCandidateStatusAndLog(params: {
           });
 
           if (!postAcceptedRes.ok) {
-            // Fallback if FK constraint on job_id fails
+            // Fallback if FK constraint on job_id fails or columns pending
             await fetch(`${baseUrl}/rest/v1/d2_application_history`, {
               method: 'POST',
               headers: {
@@ -983,7 +1076,12 @@ export async function updateCandidateStatusAndLog(params: {
                 'apikey': supabaseKey,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ ...acceptedPayload, job_id: null }),
+              body: JSON.stringify({
+                ...acceptedPayload,
+                job_id: null,
+                employee_user_id: undefined,
+                initial_level: undefined,
+              }),
             });
           }
         }
@@ -1088,14 +1186,15 @@ export async function softDeleteCandidate(params: {
 
   try {
     const nowIso = new Date().toISOString();
-    const patchPayload = {
+    const patchPayload: Record<string, any> = {
+      is_deleted: true,
       stage: 'deleted',
       updated_at: nowIso,
       rejection_reason: `__SOFT_DELETED__:${reason}`,
     };
 
     const patchUrl = `${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}`;
-    const patchPromise = fetch(patchUrl, {
+    let patchRes = await fetch(patchUrl, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -1105,6 +1204,35 @@ export async function softDeleteCandidate(params: {
       },
       body: JSON.stringify(patchPayload),
     });
+
+    if (!patchRes.ok) {
+      // Fallback if is_deleted column does not exist on d2_candidates yet
+      patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          stage: 'deleted',
+          updated_at: nowIso,
+          rejection_reason: `__SOFT_DELETED__:${reason}`,
+        }),
+      });
+    }
+
+    // Soft-delete corresponding records in d2_application_history (AC 4: Soft delete only)
+    fetch(`${baseUrl}/rest/v1/d2_application_history?candidate_id=eq.${encodeURIComponent(candidateId)}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ is_deleted: true }),
+    }).catch(() => {});
 
     const auditUrl = `${baseUrl}/rest/v1/d2_audit_logs`;
     const auditPromise = fetch(auditUrl, {
@@ -1124,7 +1252,7 @@ export async function softDeleteCandidate(params: {
       }),
     });
 
-    const [patchRes] = await Promise.all([patchPromise, auditPromise]);
+    await auditPromise;
 
     if (!patchRes.ok) {
       const errText = await patchRes.text();

@@ -444,6 +444,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // 6.6. Send initial application received email via Nodemailer
+    try {
+      const jobInfo = await getJobPostById(validJobId);
+      const { sendStatusUpdateEmail } = await import('@/app/squad-d2/src/lib/emailService');
+      await sendStatusUpdateEmail({
+        candidateEmail: email,
+        candidateName: fullName,
+        jobTitle: jobInfo?.title || 'Posisi yang Dilamar',
+        oldStatus: 'unregistered',
+        newStatus: 'applied',
+        actorName: 'System Registration',
+      });
+    } catch (emailErr) {
+      console.warn('[Squad D2 API] Warning: Failed to send registration email:', emailErr);
+    }
+
     const elapsedTotal = Date.now() - actionStartTime;
     if (elapsedTotal > 500) {
       console.warn(`[TR-D2-002 TR-05] Registration execution took ${elapsedTotal}ms (target < 500ms)`);

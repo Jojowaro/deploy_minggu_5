@@ -240,7 +240,10 @@ function FitProperContent() {
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-            if (isMounted) setCandidate(json.data[0]);
+            if (isMounted) {
+              setCandidate(json.data[0]);
+              setIsLoadingCandidate(false);
+            }
             return;
           }
         }
@@ -1020,6 +1023,68 @@ function FitProperContent() {
         {/* BIG CARD CONTAINER (Light Blue/Lavender Background matching Image 2)      */}
         {/* ========================================================================= */}
         <div className="flex-1 bg-[#eef4fe] rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 md:p-9 border border-blue-100/70 shadow-sm flex flex-col">
+          {isLoadingCandidate || isLoadingReqs ? (
+            <div className="animate-pulse flex flex-col w-full">
+              {/* 1. Candidate Info Banner Skeleton */}
+              <div className="mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-blue-200/70 shrink-0" />
+                  <div className="space-y-2">
+                    <div className="h-6 w-44 sm:w-60 bg-blue-200/80 rounded-lg" />
+                    <div className="h-4 w-28 sm:w-36 bg-blue-200/60 rounded-md" />
+                  </div>
+                </div>
+                <div className="h-8 w-28 bg-blue-200/60 rounded-full self-start sm:self-center" />
+              </div>
+
+              {/* 2. Capsule Navigation Tabs Skeleton */}
+              <div className="flex justify-center mb-6 sm:mb-8 w-full">
+                <div className="h-11 max-w-3xl w-full rounded-full bg-blue-200/50" />
+              </div>
+
+              {/* 3. Main Content Skeleton Card Box */}
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
+                {/* Search & Actions Bar Skeleton */}
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+                  <div className="h-10 w-full sm:w-72 bg-slate-100 rounded-xl" />
+                  <div className="flex gap-2">
+                    <div className="h-10 w-28 bg-slate-100 rounded-xl" />
+                    <div className="h-10 w-28 bg-slate-100 rounded-xl" />
+                  </div>
+                </div>
+
+                {/* Metrics Cards Skeleton */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="h-28 bg-[#f8fafd] rounded-2xl border border-slate-200/80 p-4 space-y-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded" />
+                    <div className="h-8 w-16 bg-slate-300/70 rounded-lg" />
+                  </div>
+                  <div className="h-28 bg-[#f8fafd] rounded-2xl border border-slate-200/80 p-4 space-y-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded" />
+                    <div className="h-8 w-16 bg-slate-300/70 rounded-lg" />
+                  </div>
+                  <div className="h-28 bg-[#f8fafd] rounded-2xl border border-slate-200/80 p-4 space-y-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded" />
+                    <div className="h-8 w-24 bg-slate-300/70 rounded-lg" />
+                  </div>
+                </div>
+
+                {/* Requirements Table Skeleton */}
+                <div className="space-y-3 pt-2">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="flex items-center justify-between p-4 bg-[#f8fafd] rounded-xl border border-slate-200/70">
+                      <div className="space-y-2 flex-1 max-w-md">
+                        <div className="h-4 bg-slate-200 rounded w-3/4" />
+                        <div className="h-3 bg-slate-100 rounded w-1/2" />
+                      </div>
+                      <div className="h-6 w-20 bg-slate-200 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* 1. Candidate Info Banner Card matching Image 2 */}
           <div className="bg-transparent mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3 sm:gap-4">
@@ -1063,7 +1128,7 @@ function FitProperContent() {
           </div>
 
           {/* Role Access & Authority Banner */}
-          {currentUser && (
+          {/* {currentUser && (
             <div
               className={`mb-5 sm:mb-6 p-3.5 sm:p-4 rounded-2xl border text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
                 isManager
@@ -1100,7 +1165,7 @@ function FitProperContent() {
                 {isManager ? t('fitProper.authority.managerBadge', 'HR Manager Authority') : t('fitProper.authority.recruiterBadge', 'Recruiter Preview')}
               </span>
             </div>
-          )}
+          )} */}
 
           {/* 2. Navigation Tabs Container: Capsule Pill matching UI/UX design */}
           <div className="flex justify-center mb-6 sm:mb-8 w-full">
@@ -1709,6 +1774,8 @@ function FitProperContent() {
                 )}
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </main>

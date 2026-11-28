@@ -826,9 +826,9 @@ export default function KanbanPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                  {t('kanban.title', 'KANBAN')}
+                  {t('kanban.title', 'Pipeline Kandidat')}
                 </h1>
-                {isHRManager(currentUser?.role) ? (
+                {/* {isHRManager(currentUser?.role) ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs">
                     <ShieldCheck className="w-3.5 h-3.5" /> {t('kanban.badges.hrManagerSupervision', 'Supervisi HR Manager')}
                   </span>
@@ -836,12 +836,16 @@ export default function KanbanPage() {
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 shadow-2xs">
                     <Sparkles className="w-3.5 h-3.5" /> {t('kanban.badges.hrRecruiterOperations', 'Operasional HR Recruiter')}
                   </span>
-                )}
+                )} */}
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {isHRManager(currentUser?.role)
-                  ? t('kanban.subtitles.manager', 'Supervisi alur seleksi & monitoring riwayat audit trail rekrutmen PT Andima')
-                  : t('kanban.subtitles.recruiter', 'Pelacakan pipeline & pengelolaan tahapan kandidat pelamar (FR-D2-002)')}
+              <p className="text-xs text-slate-500 mt-1 min-h-[16px]">
+                {isLoading && !currentUser ? (
+                  <span className="inline-block h-3.5 w-64 bg-slate-200 rounded animate-pulse" />
+                ) : isHRManager(currentUser?.role) ? (
+                  t('kanban.subtitles.manager', 'Supervisi alur seleksi & monitoring riwayat audit trail rekrutmen PT Andima')
+                ) : (
+                  t('kanban.subtitles.recruiter', 'Pelacakan pipeline & pengelolaan tahapan kandidat pelamar (FR-D2-002)')
+                )}
               </p>
             </div>
           </div>
@@ -1003,12 +1007,41 @@ export default function KanbanPage() {
                 {[1, 2, 3, 4, 5].map((idx) => (
                   <div
                     key={`skeleton-col-${idx}`}
-                    className="w-[82vw] sm:w-[280px] min-w-[260px] sm:min-w-[280px] shrink-0 bg-[#f8fafd] rounded-2xl sm:rounded-3xl p-3 border border-slate-200/80 min-h-[580px] animate-pulse flex flex-col justify-between"
+                    className="w-[82vw] sm:w-[280px] min-w-[260px] sm:min-w-[280px] shrink-0 bg-[#f8fafd] rounded-2xl md:rounded-3xl p-3 border border-slate-200/80 min-h-[580px] animate-pulse flex flex-col"
                   >
-                    <div className="h-9 bg-slate-200 rounded-xl mb-4" />
+                    {/* Column Header Pill Skeleton */}
+                    <div className="w-full bg-[#e7edf8] rounded-xl py-2 px-3 flex items-center justify-between mb-3">
+                      <div className="h-4 w-20 bg-slate-300/70 rounded mx-auto" />
+                      <div className="h-4 w-5 bg-slate-300/50 rounded-full" />
+                    </div>
+
+                    {/* Column Cards Skeleton */}
                     <div className="space-y-3 flex-1">
-                      <div className="h-28 bg-white rounded-2xl border border-slate-200 p-4" />
-                      <div className="h-28 bg-white rounded-2xl border border-slate-200 p-4" />
+                      {[1, 2, 3].map((cardIdx) => (
+                        <div
+                          key={`skeleton-card-${idx}-${cardIdx}`}
+                          className="bg-white rounded-2xl border border-slate-200/90 p-3.5 space-y-3 shadow-2xs"
+                        >
+                          {/* Card Header: Avatar & Info */}
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 shrink-0" />
+                            <div className="space-y-1.5 flex-1">
+                              <div className="h-3.5 w-24 bg-slate-200 rounded" />
+                              <div className="h-2.5 w-16 bg-slate-100 rounded" />
+                            </div>
+                          </div>
+                          {/* Card Badges */}
+                          <div className="flex gap-1.5">
+                            <div className="h-5 w-14 bg-slate-100 rounded-full" />
+                            <div className="h-5 w-16 bg-slate-100 rounded-full" />
+                          </div>
+                          {/* Card Footer */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-50">
+                            <div className="h-2.5 w-14 bg-slate-100 rounded" />
+                            <div className="h-5 w-10 bg-slate-100 rounded-md" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}

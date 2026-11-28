@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { Transporter } from 'nodemailer';
 
 export interface InterviewDetails {
   date: string;
@@ -25,28 +25,71 @@ export interface StatusEmailParams {
 
 /**
  * Configure Nodemailer Transporter
- * Supports custom SMTP if env variables are defined, otherwise uses JSON/stream transport
- * to guarantee robust, non-blocking execution in any environment.
+ * Supports Gmail SMTP / custom SMTP if credentials are provided in env,
+ * otherwise automatically generates an active Ethereal dummy SMTP account
+ * with real web inbox delivery and message preview URL.
  */
-function getTransporter() {
+let cachedTransporter: Transporter | null = null;
+let cachedAuthUser: string | undefined = undefined;
+
+async function getTransporter(): Promise<{ transporter: Transporter; authUser?: string; isTestAccount?: boolean }> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
 
-  if (host && user && pass) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-    });
+  // 1. Explicit SMTP credentials provided (e.g. Gmail SMTP or custom server)
+  if (user && pass) {
+    if (
+      process.env.SMTP_SERVICE === 'gmail' ||
+      host === 'smtp.gmail.com' ||
+      (!host && user.endsWith('@gmail.com'))
+    ) {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+      });
+      return { transporter, authUser: user, isTestAccount: false };
+    }
+
+    if (host) {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+      });
+      return { transporter, authUser: user, isTestAccount: false };
+    }
   }
 
-  // Development / Test transporter: safely logs and handles email dispatch
-  return nodemailer.createTransport({
-    jsonTransport: true,
-  });
+  // 2. Reuse already initialized Ethereal dummy test account
+  if (cachedTransporter) {
+    return { transporter: cachedTransporter, authUser: cachedAuthUser, isTestAccount: true };
+  }
+
+  // 3. Fallback: Automatically generate an active Ethereal dummy SMTP account
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    cachedAuthUser = testAccount.user;
+    cachedTransporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    console.info(`[Squad D2 Email] Inisialisasi akun dummy SMTP (Ethereal): ${testAccount.user}`);
+    return { transporter: cachedTransporter, authUser: cachedAuthUser, isTestAccount: true };
+  } catch (err) {
+    console.warn('[Squad D2 Email] Tidak dapat membuat akun test Ethereal, menggunakan stream JSON transport:', err);
+    return {
+      transporter: nodemailer.createTransport({ jsonTransport: true }),
+      isTestAccount: false,
+    };
+  }
 }
 
 function getStatusBadgeColor(status: string): { bg: string; text: string; label: string } {
@@ -158,14 +201,6 @@ function generateEmailHtml(params: StatusEmailParams): { subject: string; html: 
               <tr>
                 <td style="padding: 6px 0; font-weight: 600;">Alamat Lokasi:</td>
                 <td style="padding: 6px 0;">${interviewDetails.locationAddress || 'Pool Andima Cakung, Jl. Raya Bekasi KM 24'}</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px 0; font-weight: 600;">Ruang Wawancara:</td>
-                <td style="padding: 6px 0;">${interviewDetails.roomName || 'Ruang Rapat Operasional B Lantai 2'}</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px 0; font-weight: 600;">PIC Lapangan:</td>
-                <td style="padding: 6px 0;">${interviewDetails.contactPerson || 'Bpk. Hendra (Koordinator Pool)'}</td>
               </tr>
             </table>
             <p style="margin: 14px 0 0 0; font-size: 12px; color: #64748b;">
@@ -303,6 +338,7 @@ Tim Rekrutmen PT Andima Transportindo
 export async function sendStatusUpdateEmail(params: StatusEmailParams): Promise<{
   success: boolean;
   messageId?: string;
+  previewUrl?: string;
   error?: string;
 }> {
   const { candidateEmail, candidateName, newStatus } = params;
@@ -314,8 +350,15 @@ export async function sendStatusUpdateEmail(params: StatusEmailParams): Promise<
 
   const startTime = Date.now();
   try {
-    const transporter = getTransporter();
-    const fromAddress = process.env.SMTP_FROM || 'PT Andima Transportindo <recruitment@andima.co.id>';
+    const { transporter, authUser } = await getTransporter();
+    let fromAddress = process.env.SMTP_FROM;
+    if (!fromAddress) {
+      if (authUser && authUser.includes('@')) {
+        fromAddress = `"PT Andima Transportindo" <${authUser}>`;
+      } else {
+        fromAddress = '"PT Andima Transportindo" <recruitment@andima.co.id>';
+      }
+    }
     const { subject, html, text } = generateEmailHtml(params);
 
     console.info(`[Squad D2 Email] Preparing email to candidate "${candidateName}" <${candidateEmail}>: Status -> ${newStatus}`);
@@ -328,6 +371,7 @@ export async function sendStatusUpdateEmail(params: StatusEmailParams): Promise<
       html,
     });
 
+    const previewUrl = nodemailer.getTestMessageUrl(info);
     const elapsed = Date.now() - startTime;
     console.info(`[Squad D2 Email] Email successfully dispatched to <${candidateEmail}> in ${elapsed}ms (MessageId: ${info.messageId || 'dev-json'})`);
     console.info(`--------------------------------------------------------------------------------`);
@@ -339,11 +383,15 @@ export async function sendStatusUpdateEmail(params: StatusEmailParams): Promise<
       console.info(`   Jadwal Meet : ${params.interviewDetails.date} @ ${params.interviewDetails.hour}:${params.interviewDetails.minute} WIB`);
       console.info(`   Link Meet   : ${params.interviewDetails.meetLink}`);
     }
+    if (previewUrl) {
+      console.info(`   🔗 Preview Inbox (Ethereal) : ${previewUrl}`);
+    }
     console.info(`--------------------------------------------------------------------------------`);
 
     return {
       success: true,
       messageId: info.messageId || 'dev-json',
+      previewUrl: previewUrl ? previewUrl : undefined,
     };
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error);

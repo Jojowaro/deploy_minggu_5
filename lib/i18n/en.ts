@@ -7,8 +7,8 @@ export const en = {
     fitProper: "Fit & Proper",
     jobListRegister: "Job List & Register",
     portalJobs: "Job Vacancies Portal",
-    candidatePipelineSupervisor: "Candidate Pipeline (Supervisor)",
-    candidatePipelineOperational: "Candidate Pipeline (Operational)",
+    candidatePipelineSupervisor: "Recruitment Pipeline",
+    candidatePipelineOperational: "Recruitment Pipeline",
     evaluasiFitProper: "Fit & Proper Evaluation",
     notifications: "Notifications",
     filters: "Filters",
@@ -72,7 +72,7 @@ export const en = {
 
   // Kanban & Recruitment Pipeline
   kanban: {
-    title: "KANBAN",
+    title: "Candidate Pipeline",
     subtitle: "Recruitment Pipeline & Candidate Tracking",
     addNewStatus: "Add New Status",
     clickToAddCustomColumn: "Click to add a custom column",
@@ -168,7 +168,9 @@ export const en = {
       cancel: "Cancel",
       send: "Send",
       errorTime: "Time is required",
+      errorInvalidTime: "Invalid time format (00-23 : 00-59)",
       errorMeetLink: "Meeting link is required",
+      errorInvalidMeetUrl: "Invalid meeting link format (e.g. https://meet.google.com/abc-xyz)",
       errorLocation: "Location must be selected",
       errorDate: "Date is required",
       errorPastDate: "Cannot select a past date",

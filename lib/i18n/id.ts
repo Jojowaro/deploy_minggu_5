@@ -9,8 +9,8 @@ export const id: TranslationType = {
     fitProper: "Fit & Proper",
     jobListRegister: "Daftar Lowongan & Pendaftaran",
     portalJobs: "Portal Lowongan Kerja",
-    candidatePipelineSupervisor: "Pipeline Kandidat (Supervisi)",
-    candidatePipelineOperational: "Pipeline Kandidat (Operasional)",
+    candidatePipelineSupervisor: "Pipeline Rekrutmen",
+    candidatePipelineOperational: "Pipeline Rekrutmen",
     evaluasiFitProper: "Evaluasi Fit & Proper",
     notifications: "Notifikasi",
     filters: "Filter",
@@ -74,7 +74,7 @@ export const id: TranslationType = {
 
   // Kanban & Recruitment Pipeline
   kanban: {
-    title: "KANBAN",
+    title: "Pipeline Kandidat",
     subtitle: "Pipeline Rekrutmen & Pelacakan Kandidat",
     addNewStatus: "Tambah Status Baru",
     clickToAddCustomColumn: "Klik untuk menambah kolom kustom",
@@ -96,7 +96,7 @@ export const id: TranslationType = {
       selectStatus: "Pilih Status",
       allColumns: "Semua Kolom ({count} Status)",
       searchSpecificCard: "Cari Kartu Spesifik",
-      rejectedVisible: "Ditolak: Terlihat",
+      rejectedVisible: "Ditolak: Ditampilkan",
       rejectedHidden: "Ditolak: Tersembunyi",
       hideRejectedTooltip: "Klik untuk sembunyikan kolom Ditolak",
       showRejectedTooltip: "Klik untuk tampilkan kolom Ditolak",
@@ -170,7 +170,9 @@ export const id: TranslationType = {
       cancel: "Batal",
       send: "Kirim",
       errorTime: "Waktu wajib diisi",
+      errorInvalidTime: "Format waktu tidak valid (00-23 : 00-59)",
       errorMeetLink: "Tautan rapat wajib diisi",
+      errorInvalidMeetUrl: "Format tautan rapat tidak valid (contoh: https://meet.google.com/abc-xyz)",
       errorLocation: "Lokasi wajib dipilih",
       errorDate: "Tanggal wajib dipilih",
       errorPastDate: "Tidak bisa memilih hari yang sudah lewat",

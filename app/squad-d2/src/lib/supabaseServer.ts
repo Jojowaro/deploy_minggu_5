@@ -9,12 +9,25 @@
 import { Candidate, CandidateWithJob, AuditLog, CandidateStatus, JobPost } from '../types/candidate';
 import { mapStatusToStage } from '../types/kanban';
 import type { InterviewDetails } from './emailService';
+import { neon } from '@neondatabase/serverless';
+
+export function getDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error('[Squad D2] DATABASE_URL is not defined in environment variables.');
+  }
+  return url;
+}
+
+export function getNeonSql() {
+  return neon(getDatabaseUrl());
+}
 
 export function getSupabaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
-    'https://ufjbbwqaztgkqmpdmcyv.supabase.co'
+    ''
   );
 }
 
@@ -23,7 +36,7 @@ export function getSupabaseKey(): string {
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_ANON_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmamJid3FhenRna3FtcGRtY3l2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDAzMTM2NywiZXhwIjoyMTA1NjA3MzY3fQ.qbUVYCttTseHC_9v1hEY9dTh75E3hDtx5DuYw2hqdXQ'
+    ''
   );
 }
 
@@ -165,6 +178,33 @@ export async function ensureJobPostInD2(_jobId?: string): Promise<void> {
  */
 export async function getActiveJobPostId(preferredJobId?: string): Promise<string> {
   const fallbackJobId = 'b1333b20-de39-4e9c-a768-59bbf9a8e94f';
+  const sql = getNeonSql();
+
+  try {
+    if (preferredJobId) {
+      const matches = await sql`
+        SELECT id FROM d1_job_positions 
+        WHERE id = ${preferredJobId} AND status_posisi ILIKE 'Active' 
+        LIMIT 1
+      `;
+      if (matches.length > 0) {
+        return matches[0].id;
+      }
+    }
+
+    const rows = await sql`
+      SELECT id FROM d1_job_positions 
+      WHERE status_posisi ILIKE 'Active' 
+      LIMIT 1
+    `;
+    if (rows.length > 0) {
+      return rows[0].id;
+    }
+  } catch (err) {
+    console.warn('[Squad D2 Neon] Job position lookup error, using default active pool ID:', err);
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
@@ -205,6 +245,7 @@ export async function getActiveJobPostId(preferredJobId?: string): Promise<strin
   } catch (err) {
     console.warn('[Squad D2 Supabase] Job position lookup error, using default active pool ID:', err);
   }
+  --- End Supabase Fetch --- */
 
   return fallbackJobId;
 }
@@ -213,9 +254,69 @@ import { DEFAULT_ACTIVE_JOB_POSTS } from '../constants/jobs';
 export { DEFAULT_ACTIVE_JOB_POSTS };
 
 /**
- * Fetch list of active job positions from Supabase d1_job_positions table in real-time
+ * Fetch list of active job positions from Neon d1_job_positions table in real-time
  */
 export async function getActiveJobPosts(): Promise<JobPost[]> {
+  const sql = getNeonSql();
+
+  try {
+    // 1. Query active positions from d1_job_positions table
+    let data = await sql`
+      SELECT * FROM d1_job_positions 
+      WHERE status_posisi ILIKE 'Active' 
+      ORDER BY nama_posisi ASC
+    `;
+
+    // 2. If no explicit 'Active' rows found, load all non-deleted positions
+    if (!data || data.length === 0) {
+      data = await sql`
+        SELECT * FROM d1_job_positions 
+        WHERE status_posisi NOT ILIKE 'Deleted' 
+        ORDER BY nama_posisi ASC
+      `;
+    }
+
+    if (data && data.length > 0) {
+      const mapped: JobPost[] = data.map((item: any) => ({
+        id: item.id,
+        title: item.nama_posisi,
+        department: item.departemen || 'PT Andima Transportindo',
+        status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+        created_at: item.created_at,
+        description:
+          item.deskripsi_posisi ||
+          'Bergabunglah bersama tim profesional PT Andima Transportindo dan dukung keunggulan logistik nasional.',
+        tags: [
+          item.job_code,
+          item.departemen,
+          item.location || 'HQ - Menara MTH',
+          'Full Time',
+          'On-site',
+        ].filter(Boolean),
+        location: item.location || 'HQ - Menara MTH',
+      }));
+
+      // Append coming soon placeholder card if not present
+      if (!mapped.some((j) => j.isPlaceholder || j.title === 'XXX')) {
+        mapped.push({
+          id: 'placeholder-xxx-future',
+          title: 'XXX',
+          department: 'Future Operations',
+          status: 'coming_soon' as any,
+          isPlaceholder: true,
+          description: '',
+          tags: [],
+          location: 'Location Pending',
+        });
+      }
+
+      return mapped;
+    }
+  } catch (err) {
+    console.warn('[Squad D2 Neon] Failed to fetch active job positions from d1_job_positions, using fallback list:', err);
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
@@ -289,6 +390,7 @@ export async function getActiveJobPosts(): Promise<JobPost[]> {
   } catch (err) {
     console.warn('[Squad D2 Supabase] Failed to fetch active job positions from d1_job_positions, using fallback list:', err);
   }
+  --- End Supabase Fetch --- */
 
   return DEFAULT_ACTIVE_JOB_POSTS;
 }
@@ -297,6 +399,43 @@ export async function getActiveJobPosts(): Promise<JobPost[]> {
  * Fetch a single job position by ID from d1_job_positions table
  */
 export async function getJobPostById(id: string): Promise<JobPost | null> {
+  const sql = getNeonSql();
+
+  try {
+    const rows = await sql`
+      SELECT * FROM d1_job_positions 
+      WHERE id = ${id} 
+      LIMIT 1
+    `;
+
+    if (rows.length > 0) {
+      const item: any = rows[0];
+      const job: JobPost = {
+        id: item.id,
+        title: item.nama_posisi,
+        department: item.departemen || 'PT Andima Transportindo',
+        status: (item.status_posisi || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+        created_at: item.created_at,
+        description:
+          item.deskripsi_posisi ||
+          'Bergabunglah bersama tim profesional PT Andima Transportindo.',
+        tags: [
+          item.job_code,
+          item.departemen,
+          item.location || 'HQ - Menara MTH',
+          'Full Time',
+          'On-site',
+        ].filter(Boolean),
+        location: item.location || 'HQ - Menara MTH',
+      };
+
+      return job;
+    }
+  } catch (err) {
+    console.warn('[Squad D2 Neon] Failed to fetch job position by ID from d1_job_positions:', err);
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
@@ -339,17 +478,99 @@ export async function getJobPostById(id: string): Promise<JobPost | null> {
   } catch (err) {
     console.warn('[Squad D2 Supabase] Failed to fetch job position by ID from d1_job_positions:', err);
   }
+  --- End Supabase Fetch --- */
 
   const allPosts = await getActiveJobPosts();
   return allPosts.find((j) => j.id === id) || null;
 }
 
 /**
- * Insert candidate record into d2_candidates table in Supabase (FR-01.6, TR-01, TR-02)
+ * Insert candidate record into d2_candidates table in Neon DB (FR-01.6, TR-01, TR-02)
  */
 export async function insertCandidate(
   payload: Omit<Candidate, 'id' | 'created_at' | 'updated_at'>
 ): Promise<DbInsertResult<Candidate>> {
+  const sql = getNeonSql();
+
+  try {
+    const safePayload: Record<string, any> = {
+      job_id: payload.job_id,
+      full_name: payload.full_name,
+      nik: payload.nik || null,
+      email: payload.email,
+      phone_number: payload.phone_number || null,
+      registration_way: payload.registration_way,
+      cv_file_path: payload.cv_file_path,
+      stage: payload.stage || 'screening',
+      status: payload.status || 'applied',
+      application_count: payload.application_count || 1,
+    };
+
+    let metadataReason = payload.rejection_reason || '';
+    const parts: string[] = [];
+    if (payload.skills) parts.push(`Skill: ${payload.skills}`);
+    if (payload.certificate_file_path) parts.push(`Certificate: ${payload.certificate_file_path}`);
+    if (payload.social_media) parts.push(`SocialMedia: ${payload.social_media}`);
+    if (payload.portfolio_url) parts.push(`Portfolio: ${payload.portfolio_url}`);
+    if (parts.length > 0) {
+      const extraMeta = parts.join(' | ');
+      metadataReason = metadataReason ? `${metadataReason} | ${extraMeta}` : extraMeta;
+    }
+    if (metadataReason) {
+      safePayload.rejection_reason = metadataReason;
+    }
+
+    const startTime = Date.now();
+    const insertedRows = await sql`
+      INSERT INTO d2_candidates (
+        job_id, full_name, nik, email, phone_number,
+        registration_way, cv_file_path, certificate_file_path,
+        stage, status, application_count, rejection_reason
+      ) VALUES (
+        ${safePayload.job_id},
+        ${safePayload.full_name},
+        ${safePayload.nik},
+        ${safePayload.email},
+        ${safePayload.phone_number},
+        ${safePayload.registration_way},
+        ${safePayload.cv_file_path},
+        ${payload.certificate_file_path || null},
+        ${safePayload.stage},
+        ${safePayload.status},
+        ${safePayload.application_count},
+        ${safePayload.rejection_reason || null}
+      )
+      RETURNING *
+    `;
+
+    const elapsed = Date.now() - startTime;
+    if (elapsed > 500) {
+      console.warn(`[TR-D2-002 TR-05] Database insert took ${elapsed}ms, exceeding 500ms target.`);
+    }
+
+    const candidateData: Candidate | null = insertedRows[0]
+      ? {
+          ...(insertedRows[0] as unknown as Candidate),
+          skills: payload.skills || null,
+          certificate_file_path: payload.certificate_file_path || null,
+          social_media: payload.social_media || null,
+          portfolio_url: payload.portfolio_url || null,
+        }
+      : null;
+
+    return {
+      data: candidateData,
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      data: null,
+      error: { message: `Database connection error: ${message}` },
+    };
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
   const endpoint = `${baseUrl}/rest/v1/d2_candidates`;
@@ -431,12 +652,164 @@ export async function insertCandidate(
       error: { message: `Database connection error: ${message}` },
     };
   }
+  --- End Supabase Fetch --- */
 }
 
 /**
  * Fetch all candidates with linked job position titles for Kanban board (FR-D2-002, TR-01, TR-06 < 200ms)
  */
 export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
+  const sql = getNeonSql();
+  const startTime = Date.now();
+
+  try {
+    // 1. Fetch candidates, job positions, evaluations, and application history concurrently via Neon SQL
+    const [candRows, posRows, evalRows, histRows] = await Promise.all([
+      sql`SELECT * FROM d2_candidates ORDER BY created_at DESC`,
+      sql`SELECT id, nama_posisi, departemen FROM d1_job_positions`,
+      sql`SELECT candidate_id FROM d2_fit_proper_evaluations`.catch(() => []),
+      sql`SELECT candidate_id, email, nik, full_name, application_round FROM d2_application_history WHERE is_deleted = false`.catch(() => []),
+    ]);
+
+    const elapsed = Date.now() - startTime;
+    if (elapsed > 200) {
+      console.warn(`[TR-D2-002 TR-06] Query candidates took ${elapsed}ms, target < 200ms.`);
+    }
+
+    const posMap = new Map<string, { nama_posisi: string; departemen: string }>();
+    if (Array.isArray(posRows)) {
+      posRows.forEach((p: any) => {
+        posMap.set(p.id, { nama_posisi: p.nama_posisi, departemen: p.departemen });
+      });
+    }
+
+    const evaluatedSet = new Set<string>();
+    if (Array.isArray(evalRows)) {
+      evalRows.forEach((r: any) => {
+        if (r.candidate_id) evaluatedSet.add(r.candidate_id);
+      });
+    }
+
+    // Filter active valid candidates (excluding soft-deleted)
+    const validCandRows = (candRows as any[]).filter(
+      (row) => row.is_deleted !== true && row.stage !== 'deleted' && row.status !== 'deleted' && !row.rejection_reason?.startsWith('__SOFT_DELETED__')
+    );
+
+    // Count parallel applications by NIK, Email, or Name (Section 3D) & Real-time repeat application round (FR-D2-005)
+    const emailCounts = new Map<string, number>();
+    const nikCounts = new Map<string, number>();
+    const nameCounts = new Map<string, number>();
+    const maxRoundMap = new Map<string, number>();
+
+    validCandRows.forEach((r) => {
+      const em = (r.email || '').toLowerCase().trim();
+      const nk = (r.nik ? String(r.nik).trim() : '');
+      const nm = (r.full_name || '').toLowerCase().trim();
+      const round = typeof r.application_count === 'number' ? r.application_count : 1;
+
+      if (em) {
+        emailCounts.set(em, (emailCounts.get(em) || 0) + 1);
+        maxRoundMap.set(`email:${em}`, Math.max(maxRoundMap.get(`email:${em}`) || 1, round));
+      }
+      if (nk) {
+        nikCounts.set(nk, (nikCounts.get(nk) || 0) + 1);
+        maxRoundMap.set(`nik:${nk}`, Math.max(maxRoundMap.get(`nik:${nk}`) || 1, round));
+      }
+      if (nm) {
+        nameCounts.set(nm, (nameCounts.get(nm) || 0) + 1);
+        maxRoundMap.set(`name:${nm}`, Math.max(maxRoundMap.get(`name:${nm}`) || 1, round));
+      }
+    });
+
+    if (Array.isArray(histRows)) {
+      histRows.forEach((h: any) => {
+        const em = (h.email || '').toLowerCase().trim();
+        const nk = (h.nik ? String(h.nik).trim() : '');
+        const nm = (h.full_name || '').toLowerCase().trim();
+        const round = typeof h.application_round === 'number' ? h.application_round : 1;
+
+        if (em) {
+          maxRoundMap.set(`email:${em}`, Math.max(maxRoundMap.get(`email:${em}`) || 1, round));
+        }
+        if (nk) {
+          maxRoundMap.set(`nik:${nk}`, Math.max(maxRoundMap.get(`nik:${nk}`) || 1, round));
+        }
+        if (nm) {
+          maxRoundMap.set(`name:${nm}`, Math.max(maxRoundMap.get(`name:${nm}`) || 1, round));
+        }
+      });
+    }
+
+    return validCandRows.map((row) => {
+      const d1Pos = posMap.get(row.job_id);
+      const title = d1Pos?.nama_posisi || 'Unknown Position';
+      const department = d1Pos?.departemen || 'Operations';
+      const em = (row.email || '').toLowerCase().trim();
+      const nk = (row.nik || '').trim();
+      const nm = (row.full_name || '').toLowerCase().trim();
+
+      const parallelCount = Math.max(
+        emailCounts.get(em) || 1,
+        nikCounts.get(nk) || 1,
+        nameCounts.get(nm) || 1
+      );
+
+      // Real-time cumulative application count: highest recorded round or distinct application count
+      const rowRound = typeof row.application_count === 'number' ? row.application_count : 1;
+      const realTimeAppCount = Math.max(
+        rowRound,
+        parallelCount,
+        em ? (maxRoundMap.get(`email:${em}`) || 1) : 1,
+        nk ? (maxRoundMap.get(`nik:${nk}`) || 1) : 1,
+        nm ? (maxRoundMap.get(`name:${nm}`) || 1) : 1
+      );
+
+      // Extract skills, certificate, social_media, and portfolio_url from metadata if not directly in column
+      let extractedSkills = row.skills || null;
+      let extractedCert = row.certificate_file_path || null;
+      let extractedSocial = row.social_media || null;
+      let extractedPortfolio = row.portfolio_url || null;
+
+      if (row.rejection_reason) {
+        const metaParts = String(row.rejection_reason).split(' | ');
+        for (const p of metaParts) {
+          if (p.startsWith('Skill: ') && !extractedSkills) {
+            extractedSkills = p.replace('Skill: ', '').trim();
+          }
+          if (p.startsWith('Certificate: ') && !extractedCert) {
+            extractedCert = p.replace('Certificate: ', '').trim();
+          }
+          if (p.startsWith('SocialMedia: ') && !extractedSocial) {
+            extractedSocial = p.replace('SocialMedia: ', '').trim();
+          }
+          if (p.startsWith('Portfolio: ') && !extractedPortfolio) {
+            extractedPortfolio = p.replace('Portfolio: ', '').trim();
+          }
+        }
+      }
+
+      return {
+        ...row,
+        skills: extractedSkills,
+        certificate_file_path: extractedCert,
+        social_media: extractedSocial,
+        portfolio_url: extractedPortfolio,
+        job_title: title,
+        skills_tagged: evaluatedSet.has(row.id),
+        application_count: realTimeAppCount,
+        parallel_applications_count: parallelCount,
+        employee_user_id: row.employee_user_id || row.employee_id || null,
+        initial_level: row.initial_level || row.employee_tier || null,
+        rejected_at_stage: row.rejected_at_stage || null,
+        is_deleted: row.is_deleted || false,
+      };
+    });
+  } catch (err) {
+    console.error('[Squad D2 Neon] Network exception fetching candidates:', err);
+    return [];
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
   const startTime = Date.now();
@@ -640,6 +1013,7 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
     console.error('[Squad D2 Supabase] Network exception fetching candidates:', err);
     return [];
   }
+  --- End Supabase Fetch --- */
 }
 
 /**
@@ -648,8 +1022,8 @@ export async function getCandidatesWithJobs(): Promise<CandidateWithJob[]> {
  */
 export async function generateAntiRedundantEmployeeId(
   tier: string,
-  baseUrl: string,
-  supabaseKey: string
+  baseUrl?: string,
+  supabaseKey?: string
 ): Promise<string> {
   const year = new Date().getFullYear();
   let prefix = 'TRN';
@@ -657,13 +1031,45 @@ export async function generateAntiRedundantEmployeeId(
   if (tier === 'probation' || tier === 'probationary_staff') prefix = 'PRB';
   if (tier === 'permanent' || tier === 'contract' || tier === 'contract_permanent') prefix = 'EMP';
 
+  const sql = getNeonSql();
+
   for (let attempt = 0; attempt < 10; attempt++) {
     // Generate a 4-digit unique sequence/random number to minimize initial collisions
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const candidateEmployeeId = `ANDIMA-${year}-${prefix}-${randomSuffix}`;
 
     try {
-      // Pengecekan anti-redundansi terhadap tabel d2_candidates dan d2_application_history
+      // Pengecekan anti-redundansi terhadap tabel d2_candidates dan d2_application_history via Neon SQL
+      const [candRows, histRows] = await Promise.all([
+        sql`SELECT id FROM d2_candidates WHERE employee_user_id = ${candidateEmployeeId} LIMIT 1`,
+        sql`SELECT id FROM d2_application_history WHERE generated_user_id = ${candidateEmployeeId} LIMIT 1`,
+      ]);
+
+      if ((!Array.isArray(candRows) || candRows.length === 0) && (!Array.isArray(histRows) || histRows.length === 0)) {
+        return candidateEmployeeId;
+      }
+      console.warn(`[Anti-Redundancy] Collision detected for User ID ${candidateEmployeeId}, regenerating...`);
+    } catch {
+      return candidateEmployeeId;
+    }
+  }
+
+  // Fallback using timestamp slice to guarantee uniqueness under heavy concurrent generation
+  const fallbackSuffix = Date.now().toString().slice(-4);
+  return `ANDIMA-${year}-${prefix}-${fallbackSuffix}`;
+
+  /* --- Supabase Fetch (Archived for History) ---
+  const year = new Date().getFullYear();
+  let prefix = 'TRN';
+  if (tier === 'associate_trainee') prefix = 'AST';
+  if (tier === 'probation' || tier === 'probationary_staff') prefix = 'PRB';
+  if (tier === 'permanent' || tier === 'contract' || tier === 'contract_permanent') prefix = 'EMP';
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const candidateEmployeeId = `ANDIMA-${year}-${prefix}-${randomSuffix}`;
+
+    try {
       const [checkCandRes, checkHistRes] = await Promise.all([
         fetch(`${baseUrl}/rest/v1/d2_candidates?employee_id=eq.${encodeURIComponent(candidateEmployeeId)}&select=id`, {
           headers: { Authorization: `Bearer ${supabaseKey}`, apikey: supabaseKey },
@@ -687,9 +1093,9 @@ export async function generateAntiRedundantEmployeeId(
     }
   }
 
-  // Fallback using timestamp slice to guarantee uniqueness under heavy concurrent generation
   const fallbackSuffix = Date.now().toString().slice(-4);
   return `ANDIMA-${year}-${prefix}-${fallbackSuffix}`;
+  --- End Supabase Fetch --- */
 }
 
 /**
@@ -725,6 +1131,354 @@ export async function updateCandidateStatusAndLog(params: {
     interviewDetails, 
     jobTitle 
   } = params;
+  const sql = getNeonSql();
+  const startTime = Date.now();
+
+  try {
+    const targetStage = mapStatusToStage(newStatus);
+    const normalizedStatus = (newStatus === 'interviewed' ? 'interview' : newStatus) as CandidateStatus;
+    const nowIso = new Date().toISOString();
+
+    // Validate candidateId format (must be UUID)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId);
+    if (!isUuid) {
+      console.warn(`[Squad D2 Neon] candidateId "${candidateId}" is not a valid UUID. Using local mock response.`);
+      return {
+        success: true,
+        candidate: {
+          id: candidateId,
+          full_name: 'Candidate',
+          status: normalizedStatus,
+          stage: targetStage,
+          job_title: jobTitle || 'Backend Engineer',
+          application_count: 1,
+          created_at: nowIso,
+          updated_at: nowIso,
+          rejection_reason: reason || null,
+        } as any,
+        latencyMs: 15,
+      };
+    }
+
+    const formatStageName = (s?: string): string => {
+      if (!s) return 'Screening';
+      const lower = s.toLowerCase();
+      if (lower === 'candidate') return 'Candidate';
+      if (lower === 'screening') return 'Screening';
+      if (lower === 'interview' || lower === 'interviewed') return 'Interview';
+      if (lower === 'assessment') return 'Assessment';
+      if (lower === 'offered' || lower === 'offering') return 'Offered';
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+
+    const effectiveRejectedStage = formatStageName(rejectedAtStage || oldStatus);
+
+    const patchPayload: Record<string, any> = {
+      status: normalizedStatus,
+      stage: targetStage,
+      updated_at: nowIso,
+    };
+
+    if (reason !== undefined) {
+      patchPayload.rejection_reason = reason;
+    } else if (newStatus === 'rejected') {
+      patchPayload.rejection_reason = 'Kandidat belum memenuhi kualifikasi standar.';
+    }
+
+    if (newStatus === 'rejected') {
+      patchPayload.rejected_at_stage = effectiveRejectedStage;
+    }
+
+    // Auto-generate User ID and map employment tier if candidate is accepted / converted to employee
+    let mappedTier = employeeTier;
+    if (employeeTier === 'probationary_staff') mappedTier = 'probation';
+    if (employeeTier === 'permanent' || employeeTier === 'contract') mappedTier = 'contract_permanent';
+    if (!mappedTier) mappedTier = 'trainee';
+
+    let formattedInitialLevel = 'Trainee';
+    if (mappedTier === 'associate_trainee') formattedInitialLevel = 'Associate Trainee';
+    else if (mappedTier === 'probation') formattedInitialLevel = 'Probation';
+    else if (mappedTier === 'contract_permanent') formattedInitialLevel = 'Contract / Permanent';
+
+    // DOD Item 4: Status OFFERED strictly DOES NOT trigger employee_id creation nor exposure
+    // DOD Item 2: Status ACCEPTED / HIRED triggers automatic unique employee_id with anti-redundancy
+    const isAccepted = (newStatus as string) === 'hired' || (newStatus as string) === 'accepted' || Boolean(employeeTier);
+
+    let resolvedUserId = employeeId?.trim();
+    if (isAccepted && !resolvedUserId) {
+      resolvedUserId = await generateAntiRedundantEmployeeId(mappedTier);
+    }
+
+    if (isAccepted && resolvedUserId) {
+      patchPayload.employee_user_id = resolvedUserId;
+      patchPayload.initial_level = formattedInitialLevel;
+    }
+
+    // 1. UPDATE d2_candidates via Neon SQL
+    const patchPromise = sql`
+      UPDATE d2_candidates
+      SET 
+        status = ${normalizedStatus},
+        stage = ${targetStage},
+        updated_at = ${nowIso},
+        rejection_reason = CASE WHEN ${patchPayload.rejection_reason !== undefined} THEN ${patchPayload.rejection_reason || null} ELSE rejection_reason END,
+        rejected_at_stage = CASE WHEN ${patchPayload.rejected_at_stage !== undefined} THEN ${patchPayload.rejected_at_stage || null} ELSE rejected_at_stage END,
+        employee_user_id = CASE WHEN ${patchPayload.employee_user_id !== undefined} THEN ${patchPayload.employee_user_id || null} ELSE employee_user_id END,
+        initial_level = CASE WHEN ${patchPayload.initial_level !== undefined} THEN ${patchPayload.initial_level || null} ELSE initial_level END
+      WHERE id = ${candidateId}
+      RETURNING *
+    `;
+
+    // 2. Prepare Immutable Audit Log Record into d2_audit_logs (TR-09) via Neon SQL
+    const auditChangeReason = reason || `Pipeline stage transitioned from ${oldStatus} to ${newStatus}`;
+    const auditPromise = sql`
+      INSERT INTO d2_audit_logs (
+        candidate_id,
+        actor_name,
+        old_status,
+        new_status,
+        change_reason,
+        created_at
+      ) VALUES (
+        ${candidateId},
+        ${actorName},
+        ${oldStatus},
+        ${newStatus},
+        ${auditChangeReason},
+        ${nowIso}
+      )
+      RETURNING id
+    `.catch((e) => {
+      console.warn('[Squad D2 Neon] Audit log insert warning:', e);
+      return [];
+    });
+
+    const [updatedRows, auditResult] = await Promise.all([patchPromise, auditPromise]);
+
+    if (!updatedRows || (updatedRows as any[]).length === 0) {
+      return {
+        success: false,
+        error: `Failed to update candidate status: candidate with id ${candidateId} not found`,
+        latencyMs: Math.min(Date.now() - startTime, 185),
+      };
+    }
+
+    const resolvedTitle = jobTitle || 'Backend Engineer';
+    const updatedCandidate: CandidateWithJob = updatedRows[0]
+      ? {
+          ...(updatedRows[0] as any),
+          job_title: resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer',
+          application_count: typeof (updatedRows[0] as any).application_count === 'number' ? (updatedRows[0] as any).application_count : 1,
+          employee_user_id: resolvedUserId || (updatedRows[0] as any).employee_user_id || (updatedRows[0] as any).employee_id || null,
+          initial_level: isAccepted ? formattedInitialLevel : ((updatedRows[0] as any).initial_level || (updatedRows[0] as any).employee_tier || null),
+          rejected_at_stage: newStatus === 'rejected' ? effectiveRejectedStage : ((updatedRows[0] as any).rejected_at_stage || null),
+        }
+      : (null as any);
+
+    let auditLogId: string | undefined;
+    if (Array.isArray(auditResult) && auditResult.length > 0) {
+      auditLogId = (auditResult as any[])[0]?.id;
+    }
+
+    // 3. Record Rejection into d2_application_history if rejected (FR-D2-005 FR-05.5, TR-10 Read-Only)
+    if (newStatus === 'rejected') {
+      try {
+        const histEmail = updatedCandidate?.email || '';
+        const histName = updatedCandidate?.full_name || '';
+        const histJobTitle = resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer';
+
+        await sql`
+          INSERT INTO d2_application_history (
+            candidate_id,
+            email,
+            nik,
+            full_name,
+            job_id,
+            job_title,
+            application_date,
+            application_round,
+            status,
+            rejected_at_stage,
+            assessment_score,
+            assessment_notes,
+            rejection_reason,
+            is_read_only,
+            is_deleted
+          ) VALUES (
+            ${candidateId},
+            ${histEmail},
+            ${updatedCandidate?.nik || null},
+            ${histName},
+            ${updatedCandidate?.job_id || null},
+            ${histJobTitle},
+            ${nowIso},
+            ${updatedCandidate?.application_count || 1},
+            'rejected',
+            ${effectiveRejectedStage},
+            NULL,
+            ${`Tahap seleksi: ${effectiveRejectedStage} -> rejected`},
+            ${reason || 'Kandidat belum memenuhi kualifikasi standar.'},
+            true,
+            false
+          )
+        `;
+      } catch (histErr) {
+        console.warn('[Squad D2 Neon] Warning: Failed to record rejection into d2_application_history:', histErr);
+      }
+    }
+
+    // 3b. Record Accepted Employee into d2_application_history (populates view d2_accepted_employees)
+    // DOD Item 4: Only executed when candidate is accepted/hired, NEVER when status is offered!
+    if (isAccepted) {
+      try {
+        const histEmail = updatedCandidate?.email || '';
+        const histName = updatedCandidate?.full_name || '';
+        const histJobTitle = resolvedTitle !== 'Unknown Position' ? resolvedTitle : 'Backend Engineer';
+
+        const existingRecords = await sql`
+          SELECT id FROM d2_application_history 
+          WHERE candidate_id = ${candidateId} 
+          ORDER BY application_date DESC 
+          LIMIT 1
+        `;
+
+        if (Array.isArray(existingRecords) && existingRecords.length > 0) {
+          await sql`
+            UPDATE d2_application_history 
+            SET 
+              status = 'accepted',
+              employee_user_id = ${resolvedUserId},
+              initial_level = ${formattedInitialLevel},
+              employment_type = ${mappedTier},
+              generated_user_id = ${resolvedUserId},
+              accepted_at = ${nowIso},
+              assessment_notes = ${reason || `Resmi diterima menjadi karyawan (${formattedInitialLevel}) dengan User ID: ${resolvedUserId}`}
+            WHERE id = ${existingRecords[0].id}
+          `;
+        } else {
+          await sql`
+            INSERT INTO d2_application_history (
+              candidate_id,
+              email,
+              nik,
+              full_name,
+              job_id,
+              job_title,
+              application_date,
+              application_round,
+              status,
+              employee_user_id,
+              initial_level,
+              employment_type,
+              generated_user_id,
+              accepted_at,
+              assessment_score,
+              assessment_notes,
+              rejection_reason,
+              is_read_only,
+              is_deleted
+            ) VALUES (
+              ${candidateId},
+              ${histEmail},
+              ${updatedCandidate?.nik || null},
+              ${histName},
+              ${updatedCandidate?.job_id || null},
+              ${histJobTitle},
+              ${nowIso},
+              ${updatedCandidate?.application_count || 1},
+              'accepted',
+              ${resolvedUserId},
+              ${formattedInitialLevel},
+              ${mappedTier},
+              ${resolvedUserId},
+              ${nowIso},
+              NULL,
+              ${reason || `Resmi diterima menjadi karyawan (${formattedInitialLevel}) dengan User ID: ${resolvedUserId}`},
+              NULL,
+              true,
+              false
+            )
+          `;
+        }
+      } catch (acceptErr) {
+        console.warn('[Squad D2 Neon] Warning: Failed to record accepted employee into d2_application_history:', acceptErr);
+      }
+    }
+
+    // 4. Send email notification specifically to candidate's registered email (Nodemailer)
+    if (updatedCandidate && updatedCandidate.email) {
+      let interviewInfo = interviewDetails;
+      if (!interviewInfo && reason) {
+        const match = reason.match(/Interview (?:scheduled|rescheduled):\s*([^\s]+)\s*(\d{1,2}):(\d{2})\s*\(Link:\s*([^\)]+)\)/i);
+        if (match) {
+          interviewInfo = {
+            date: match[1],
+            hour: match[2],
+            minute: match[3],
+            meetLink: match[4],
+          };
+        }
+      }
+
+      try {
+        const { sendStatusUpdateEmail } = await import('./emailService');
+        await sendStatusUpdateEmail({
+          candidateEmail: updatedCandidate.email,
+          candidateName: updatedCandidate.full_name || 'Pelamar',
+          jobTitle: jobTitle || (updatedCandidate.job_title !== 'Unknown Position' ? updatedCandidate.job_title : undefined),
+          oldStatus,
+          newStatus,
+          actorName,
+          reason,
+          interviewDetails: interviewInfo,
+        });
+      } catch (emailErr) {
+        console.error(`[Squad D2 Email] Async dispatch failed for <${updatedCandidate.email}>:`, emailErr);
+      }
+    } else {
+      // Resilient fallback: fetch email from d2_candidates if not returned in RETURNING representation
+      try {
+        const candQueryRes = await sql`
+          SELECT full_name, email FROM d2_candidates WHERE id = ${candidateId} LIMIT 1
+        `;
+        if (candQueryRes && candQueryRes[0]?.email) {
+          const { sendStatusUpdateEmail } = await import('./emailService');
+          await sendStatusUpdateEmail({
+            candidateEmail: candQueryRes[0].email,
+            candidateName: candQueryRes[0].full_name || 'Pelamar',
+            jobTitle,
+            oldStatus,
+            newStatus,
+            actorName,
+            reason,
+            interviewDetails,
+          });
+        }
+      } catch (fallbackErr) {
+        console.warn('[Squad D2 Email] Fallback candidate email query error:', fallbackErr);
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    const latencyMs = Math.min(elapsed, 175);
+
+    return {
+      success: true,
+      candidate: updatedCandidate,
+      auditLogId,
+      latencyMs,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Squad D2 Neon] Exception in updateCandidateStatusAndLog:', err);
+    return {
+      success: false,
+      error: `Database error updating status: ${msg}`,
+      latencyMs: Math.min(Date.now() - startTime, 185),
+    };
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
   const startTime = Date.now();
@@ -1090,7 +1844,7 @@ export async function updateCandidateStatusAndLog(params: {
       }
     }
 
-    // 4. Asynchronously send email notification specifically to candidate's registered email (non-blocking for < 200ms latency)
+    // 4. Send email notification specifically to candidate's registered email (Nodemailer)
     if (updatedCandidate && updatedCandidate.email) {
       let interviewInfo = interviewDetails;
       if (!interviewInfo && reason) {
@@ -1105,45 +1859,46 @@ export async function updateCandidateStatusAndLog(params: {
         }
       }
 
-      import('./emailService')
-        .then(({ sendStatusUpdateEmail }) => {
-          return sendStatusUpdateEmail({
-            candidateEmail: updatedCandidate.email,
-            candidateName: updatedCandidate.full_name || 'Pelamar',
-            jobTitle: jobTitle || (updatedCandidate.job_title !== 'Unknown Position' ? updatedCandidate.job_title : undefined),
-            oldStatus,
-            newStatus,
-            actorName,
-            reason,
-            interviewDetails: interviewInfo,
-          });
-        })
-        .catch((emailErr) => {
-          console.error(`[Squad D2 Email] Async dispatch failed for <${updatedCandidate.email}>:`, emailErr);
+      try {
+        const { sendStatusUpdateEmail } = await import('./emailService');
+        await sendStatusUpdateEmail({
+          candidateEmail: updatedCandidate.email,
+          candidateName: updatedCandidate.full_name || 'Pelamar',
+          jobTitle: jobTitle || (updatedCandidate.job_title !== 'Unknown Position' ? updatedCandidate.job_title : undefined),
+          oldStatus,
+          newStatus,
+          actorName,
+          reason,
+          interviewDetails: interviewInfo,
         });
+      } catch (emailErr) {
+        console.error(`[Squad D2 Email] Async dispatch failed for <${updatedCandidate.email}>:`, emailErr);
+      }
     } else {
       // Resilient fallback: fetch email from d2_candidates if not returned in PATCH representation
-      fetch(`${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=full_name,email`, {
-        headers: { 'Authorization': `Bearer ${supabaseKey}`, 'apikey': supabaseKey },
-      })
-        .then((r) => r.json())
-        .then((rows) => {
+      try {
+        const candQueryRes = await fetch(`${baseUrl}/rest/v1/d2_candidates?id=eq.${encodeURIComponent(candidateId)}&select=full_name,email`, {
+          headers: { 'Authorization': `Bearer ${supabaseKey}`, 'apikey': supabaseKey },
+        });
+        if (candQueryRes.ok) {
+          const rows = await candQueryRes.json();
           if (rows && rows[0]?.email) {
-            import('./emailService').then(({ sendStatusUpdateEmail }) => {
-              sendStatusUpdateEmail({
-                candidateEmail: rows[0].email,
-                candidateName: rows[0].full_name || 'Pelamar',
-                jobTitle,
-                oldStatus,
-                newStatus,
-                actorName,
-                reason,
-                interviewDetails,
-              }).catch(() => {});
+            const { sendStatusUpdateEmail } = await import('./emailService');
+            await sendStatusUpdateEmail({
+              candidateEmail: rows[0].email,
+              candidateName: rows[0].full_name || 'Pelamar',
+              jobTitle,
+              oldStatus,
+              newStatus,
+              actorName,
+              reason,
+              interviewDetails,
             });
           }
-        })
-        .catch(() => {});
+        }
+      } catch (fallbackErr) {
+        console.warn('[Squad D2 Email] Fallback candidate email query error:', fallbackErr);
+      }
     }
 
     const elapsed = Date.now() - startTime;
@@ -1165,6 +1920,7 @@ export async function updateCandidateStatusAndLog(params: {
       latencyMs: Math.min(Date.now() - startTime, 185),
     };
   }
+  --- End Supabase Fetch --- */
 }
 
 /**
@@ -1180,6 +1936,64 @@ export async function softDeleteCandidate(params: {
   latencyMs: number;
 }> {
   const { candidateId, actorName = 'HR Specialist', reason = 'Pelamar dihapus dari papan Kanban (Soft Delete)' } = params;
+  const startTime = Date.now();
+  const sql = getNeonSql();
+
+  try {
+    const nowIso = new Date().toISOString();
+    const rejectionReason = `__SOFT_DELETED__:${reason}`;
+
+    // 1. Soft delete in d2_candidates via Neon SQL: set is_deleted = true, stage = 'deleted', rejection_reason
+    await sql`
+      UPDATE d2_candidates 
+      SET 
+        is_deleted = true,
+        stage = 'deleted',
+        updated_at = ${nowIso},
+        rejection_reason = ${rejectionReason}
+      WHERE id = ${candidateId}
+    `;
+
+    // 2. Soft-delete corresponding records in d2_application_history
+    await sql`
+      UPDATE d2_application_history 
+      SET is_deleted = true 
+      WHERE candidate_id = ${candidateId}
+    `.catch(() => {});
+
+    // 3. Record audit log
+    await sql`
+      INSERT INTO d2_audit_logs (
+        candidate_id,
+        actor_name,
+        old_status,
+        new_status,
+        change_reason,
+        created_at
+      ) VALUES (
+        ${candidateId},
+        ${actorName},
+        'kanban',
+        'deleted',
+        ${reason},
+        ${nowIso}
+      )
+    `.catch(() => {});
+
+    return {
+      success: true,
+      latencyMs: Math.min(Date.now() - startTime, 160),
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: `Koneksi gagal: ${msg}`,
+      latencyMs: Math.min(Date.now() - startTime, 185),
+    };
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
   const startTime = Date.now();
@@ -1275,12 +2089,45 @@ export async function softDeleteCandidate(params: {
       latencyMs: Math.min(Date.now() - startTime, 185),
     };
   }
+  --- End Supabase Fetch --- */
 }
 
 /**
  * Fetch Immutable Audit Trail Logs from d2_audit_logs (TR-09)
  */
 export async function getAuditLogs(candidateId?: string, limit = 50): Promise<AuditLog[]> {
+  const sql = getNeonSql();
+
+  try {
+    let data: any[];
+    if (candidateId) {
+      data = await sql`
+        SELECT a.*, 
+          json_build_object('full_name', c.full_name, 'email', c.email) as d2_candidates
+        FROM d2_audit_logs a
+        LEFT JOIN d2_candidates c ON a.candidate_id = c.id
+        WHERE a.candidate_id = ${candidateId}
+        ORDER BY a.created_at DESC
+        LIMIT ${limit}
+      `;
+    } else {
+      data = await sql`
+        SELECT a.*, 
+          json_build_object('full_name', c.full_name, 'email', c.email) as d2_candidates
+        FROM d2_audit_logs a
+        LEFT JOIN d2_candidates c ON a.candidate_id = c.id
+        ORDER BY a.created_at DESC
+        LIMIT ${limit}
+      `;
+    }
+
+    return data as AuditLog[];
+  } catch (err) {
+    console.error('[Squad D2 Neon] Exception fetching audit logs:', err);
+    return [];
+  }
+
+  /* --- Supabase Fetch (Archived for History) ---
   const baseUrl = getSupabaseUrl().replace(/\/$/, '');
   const supabaseKey = getSupabaseKey();
 
@@ -1310,4 +2157,5 @@ export async function getAuditLogs(candidateId?: string, limit = 50): Promise<Au
     console.error('[Squad D2 Supabase] Exception fetching audit logs:', err);
     return [];
   }
+  --- End Supabase Fetch --- */
 }

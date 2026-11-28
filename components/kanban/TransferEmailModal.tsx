@@ -53,6 +53,21 @@ const formatDateDisplay = (dateStr: string, isIndonesian: boolean) => {
   return `${d} ${monthName} ${y}`;
 };
 
+const isValidMeetingUrl = (url: string): boolean => {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (/\s/.test(trimmed)) return false;
+  const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/i;
+  if (!urlPattern.test(trimmed)) return false;
+  try {
+    const fullUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(fullUrl);
+    return Boolean(parsed.hostname && parsed.hostname.includes('.') && parsed.hostname.length >= 4);
+  } catch {
+    return false;
+  }
+};
+
 export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   isOpen,
   candidate,
@@ -64,8 +79,8 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
   const { language, t } = useLanguage();
   const [scheduleType, setScheduleType] = useState<'online' | 'onsite'>('online');
   const [date, setDate] = useState('');
-  const [hour, setHour] = useState('00');
-  const [minute, setMinute] = useState('00');
+  const [hour, setHour] = useState(initialData?.hour || '');
+  const [minute, setMinute] = useState(initialData?.minute || '');
   const [meetLink, setMeetLink] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
@@ -119,8 +134,8 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
     if (initialData) {
       setScheduleType(initialData.scheduleType || 'online');
       setDate(initialData.date || '');
-      setHour(initialData.hour || '00');
-      setMinute(initialData.minute || '00');
+      setHour(initialData.hour || '');
+      setMinute(initialData.minute || '');
       setMeetLink(initialData.meetLink || '');
       setLocationAddress(initialData.locationAddress || '');
       if (initialData.date) {
@@ -138,8 +153,8 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
       }
     } else {
       setDate('');
-      setHour('00');
-      setMinute('00');
+      setHour('');
+      setMinute('');
       setScheduleType('online');
       setMeetLink('');
       setLocationAddress('');
@@ -197,10 +212,23 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
 
     if (!hour.trim() || !minute.trim()) {
       newErrors.time = t('kanban.interviewModal.errorTime', 'Must be filled');
+    } else {
+      const h = parseInt(hour, 10);
+      const m = parseInt(minute, 10);
+      if (isNaN(h) || h < 0 || h > 23 || isNaN(m) || m < 0 || m > 59) {
+        newErrors.time = t('kanban.interviewModal.errorInvalidTime', 'Format waktu tidak valid (00-23 : 00-59)');
+      }
     }
 
-    if (scheduleType === 'online' && !meetLink.trim()) {
-      newErrors.meetLink = t('kanban.interviewModal.errorMeetLink', 'Meeting link must be filled');
+    if (scheduleType === 'online') {
+      if (!meetLink.trim()) {
+        newErrors.meetLink = t('kanban.interviewModal.errorMeetLink', 'Meeting link must be filled');
+      } else if (!isValidMeetingUrl(meetLink)) {
+        newErrors.meetLink = t(
+          'kanban.interviewModal.errorInvalidMeetUrl',
+          'Format tautan rapat tidak valid (contoh: https://meet.google.com/abc-xyz)'
+        );
+      }
     }
 
     if (
@@ -217,12 +245,17 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const trimmedMeetLink = meetLink.trim();
+      const formattedMeetLink = /^https?:\/\//i.test(trimmedMeetLink)
+        ? trimmedMeetLink
+        : `https://${trimmedMeetLink}`;
+
       await onSave({
         date,
-        hour: hour ? hour.padStart(2, '0') : '00',
-        minute: minute ? minute.padStart(2, '0') : '00',
+        hour: hour.trim().padStart(2, '0'),
+        minute: minute.trim().padStart(2, '0'),
         scheduleType,
-        meetLink: scheduleType === 'online' ? meetLink.trim() : undefined,
+        meetLink: scheduleType === 'online' ? formattedMeetLink : undefined,
         locationAddress: scheduleType === 'onsite' ? locationAddress.trim() : undefined,
       });
       onClose();
@@ -569,13 +602,12 @@ export const TransferEmailModal: React.FC<TransferEmailModalProps> = ({
                         value={meetLink}
                         onChange={(e) => {
                           setMeetLink(e.target.value);
-                          if (e.target.value.trim()) {
-                            setErrors((prev) => {
-                              const next = { ...prev };
-                              delete next.meetLink;
-                              return next;
-                            });
-                          }
+                          setErrors((prev) => {
+                            if (!prev.meetLink) return prev;
+                            const next = { ...prev };
+                            delete next.meetLink;
+                            return next;
+                          });
                         }}
                         placeholder={t('kanban.interviewModal.inputMeetingLink', 'Input meeting link')}
                         className={`w-full sm:w-[240px] px-3.5 py-2 rounded-xl border text-slate-800 bg-[#f8fafc] text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 placeholder:font-sans ${
